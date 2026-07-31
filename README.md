@@ -4,7 +4,7 @@ Avoids the "version soup" when switching between projects (plain Node, Angular/A
 
 ## What it does
 
-1. Detects every Node project in all open workspace folders by recursively finding `package.json` and `.nvmrc` files. Dependencies, caches and generated build directories such as `node_modules`, `.next`, `.nuxt`, `dist`, `build`, `coverage` and `out` are ignored.
+1. Detects every Node project in all open workspace folders by recursively finding `package.json` and `.nvmrc` files. Dependencies, internal folders, test hosts, caches and generated build directories such as `node_modules`, `.vscode-test`, `.next`, `.nuxt`, `dist`, `build`, `coverage` and `out` are ignored.
 2. Each project directory has its own `.nvmrc` and status:
    - **Exists and matches** the active Node version → status bar shows `✓ Node vX.X.X`.
    - **Exists and mismatches** → status bar shows an alert and lets you switch versions via `nvm use`/`nvm install` right from the menu.

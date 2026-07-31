@@ -1,6 +1,6 @@
 {
   "name": "wly-nvmrc",
-  "displayName": "Wly Nvmrc - Node Version Guard",
+  "displayName": "Wlytech - nvmrc - Node Version Guard",
   "publisher": "WlyssesCerqueira",
   "description": "Detects Node.js projects, checks the active Node version against .nvmrc and offers one-click nvm switch/install from the status bar and sidebar.",
   "repository": {
@@ -31,33 +31,33 @@
     "commands": [
       {
         "command": "wlyNvmrc.refresh",
-        "title": "Wly Nvmrc: Refresh Status",
+        "title": "Wlytech - nvmrc: Refresh Status",
         "icon": "$(refresh)"
       },
       {
         "command": "wlyNvmrc.openMenu",
-        "title": "Wly Nvmrc: Open Quick Menu",
+        "title": "Wlytech - nvmrc: Open Quick Menu",
         "icon": "$(list-selection)"
       },
       {
         "command": "wlyNvmrc.createNvmrc",
-        "title": "Wly Nvmrc: Create .nvmrc with Current Node Version"
+        "title": "Wlytech - nvmrc: Create .nvmrc with Current Node Version"
       },
       {
         "command": "wlyNvmrc.openNvmrcFile",
-        "title": "Wly Nvmrc: Open .nvmrc"
+        "title": "Wlytech - nvmrc: Open .nvmrc"
       },
       {
         "command": "wlyNvmrc.useRequiredVersion",
-        "title": "Wly Nvmrc: Switch to .nvmrc Version (nvm use)"
+        "title": "Wlytech - nvmrc: Switch to .nvmrc Version (nvm use)"
       },
       {
         "command": "wlyNvmrc.installRequiredVersion",
-        "title": "Wly Nvmrc: Install .nvmrc Version (nvm install)"
+        "title": "Wlytech - nvmrc: Install .nvmrc Version (nvm install)"
       }
     ],
     "configuration": {
-      "title": "Wly Nvmrc",
+      "title": "Wlytech - nvmrc",
       "properties": {
         "wlyNvmrc.notifyOnMismatch": {
           "type": "boolean",

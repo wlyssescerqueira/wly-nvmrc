@@ -7,6 +7,24 @@ export type NodeProject = {
     workspaceFolder: vscode.WorkspaceFolder;
 };
 
+const ignoredDirectoryNames = new Set([
+    'node_modules',
+    '.next',
+    '.nuxt',
+    '.output',
+    '.vscode-test',
+    'dist',
+    'build',
+    'coverage',
+    'out'
+]);
+
+function isGeneratedOrInternal(file: vscode.Uri, folder: vscode.WorkspaceFolder): boolean {
+    const relativePath = path.relative(folder.uri.fsPath, file.fsPath);
+    const directorySegments = path.dirname(relativePath).split(path.sep).filter(Boolean);
+    return directorySegments.some((segment) => ignoredDirectoryNames.has(segment) || segment.startsWith('.'));
+}
+
 function projectName(projectPath: string, folder: vscode.WorkspaceFolder): string {
     return projectPath === folder.uri.fsPath ? folder.name : path.basename(projectPath);
 }
@@ -15,13 +33,16 @@ function projectName(projectPath: string, folder: vscode.WorkspaceFolder): strin
 export async function findNodeProjects(): Promise<NodeProject[]> {
     const folders = vscode.workspace.workspaceFolders ?? [];
     const projects = new Map<string, NodeProject>();
-    const generatedDirectories = '**/{node_modules,.next,.nuxt,.output,dist,build,coverage,out}/**';
+    const generatedDirectories = '**/{node_modules,.next,.nuxt,.output,.vscode-test,dist,build,coverage,out}/**';
 
     for (const folder of folders) {
         const pattern = new vscode.RelativePattern(folder, '**/{package.json,.nvmrc}');
         const files = await vscode.workspace.findFiles(pattern, generatedDirectories);
 
         for (const file of files) {
+            // Keep the result safe even when a VS Code/glob version does not apply
+            // all brace exclusions (notably the downloaded host in .vscode-test).
+            if (isGeneratedOrInternal(file, folder)) {continue;}
             const projectPath = path.dirname(file.fsPath);
             const key = process.platform === 'win32' ? projectPath.toLowerCase() : projectPath;
             projects.set(key, {
