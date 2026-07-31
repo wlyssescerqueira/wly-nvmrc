@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-  <path fill="#000000" d="M20.59 13.41 12 22 2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
-  <path fill="#000000" d="M10.2 13.6h1.15v-2.34c0-.5.31-.86.78-.86.44 0 .7.28.7.77v2.43h1.15v-2.6c0-.86-.5-1.44-1.35-1.44-.6 0-1 .26-1.24.68h-.03v-.58H10.2z"/>
+  <mask id="cutout" maskUnits="userSpaceOnUse">
+    <rect x="0" y="0" width="24" height="24" fill="black"/>
+    <polygon points="12,1 21,6.2 21,16.8 12,22 3,16.8 3,6.2" fill="white"/>
+    <text x="12" y="13.4" text-anchor="middle" font-family="Consolas, 'Courier New', monospace"
+          font-weight="700" font-size="4.3" letter-spacing="-0.1" fill="black">.nvmrc</text>
+  </mask>
+  <rect x="0" y="0" width="24" height="24" fill="#000000" mask="url(#cutout)"/>
 </svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="face-top" x1="13.8" y1="35" x2="114.2" y2="35" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8ed36b"/>
+      <stop offset="1" stop-color="#6bbf47"/>
+    </linearGradient>
+    <linearGradient id="face-left" x1="13.8" y1="35" x2="64" y2="122" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f9b46"/>
+      <stop offset="1" stop-color="#3e863d"/>
+    </linearGradient>
+    <linearGradient id="face-right" x1="64" y1="64" x2="114.2" y2="93" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5aad45"/>
+      <stop offset="1" stop-color="#3e863d"/>
+    </linearGradient>
+  </defs>
+
+  <polygon points="64,6 114.2,35 114.2,93 64,122 13.8,93 13.8,35" fill="#2f6b30"/>
+
+  <polygon points="13.8,35 64,6 114.2,35 64,64" fill="url(#face-top)"/>
+  <polygon points="13.8,35 64,64 64,122 13.8,93" fill="url(#face-left)"/>
+  <polygon points="64,64 114.2,35 114.2,93 64,122" fill="url(#face-right)"/>
+
+  <polygon points="64,6 114.2,35 114.2,93 64,122 13.8,93 13.8,35" fill="none" stroke="#2f6b30" stroke-width="2" stroke-linejoin="round"/>
+
+  <text x="64" y="72" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" font-weight="700" font-size="19"
+        fill="#ffffff" stroke="#2f6b30" stroke-width="2.6" paint-order="stroke fill" stroke-linejoin="round">.nvmrc</text>
+</svg>
