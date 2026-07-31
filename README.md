@@ -1,30 +1,30 @@
 # Wly Nvmrc - Node Version Guard
 
-Evita a "sopa de versões" de Node ao trocar entre projetos (Node puro, Angular/AngularJS, Salesforce LWC/Aura etc).
+Avoids the "version soup" when switching between projects (plain Node, Angular/AngularJS, Salesforce LWC/Aura, etc).
 
-## O que faz
+## What it does
 
-1. Detecta se o workspace é um projeto Node (`package.json`, `node_modules` ou `.nvmrc`).
-2. Se for, procura um `.nvmrc` na raiz:
-   - **Existe e a versão bate** com o Node ativo → status bar mostra `✓ Node vX.X.X`.
-   - **Existe e diverge** → status bar mostra alerta e permite trocar a versão via `nvm use`/`nvm install` direto pelo menu.
-   - **Não existe** → status bar avisa que falta o `.nvmrc` e oferece criar um com a versão atual do Node.
-3. Tudo também aparece na view lateral (ícone na Activity Bar) com as mesmas ações.
+1. Detects whether the workspace is a Node project (`package.json`, `node_modules` or `.nvmrc`).
+2. If it is, it looks for a `.nvmrc` at the root:
+   - **Exists and matches** the active Node version → status bar shows `✓ Node vX.X.X`.
+   - **Exists and mismatches** → status bar shows an alert and lets you switch versions via `nvm use`/`nvm install` right from the menu.
+   - **Doesn't exist** → status bar warns that `.nvmrc` is missing and offers to create one with the current Node version.
+3. Everything also shows up in the sidebar view (icon in the Activity Bar) with the same actions.
 
-## Requisitos
+## Requirements
 
-- [nvm-windows](https://github.com/coreybutler/nvm-windows) instalado e no PATH para usar as ações "nvm use" / "nvm install". Sem o nvm, a extensão ainda detecta e sinaliza divergências, só não troca a versão automaticamente.
+- [nvm-windows](https://github.com/coreybutler/nvm-windows) installed and on PATH to use the "nvm use" / "nvm install" actions. Without nvm, the extension still detects and flags mismatches, it just can't switch the version automatically.
 
-## Configurações
+## Settings
 
-- `wlyNvmrc.notifyOnMismatch` (padrão `true`): mostra um toast quando detecta divergência de versão.
-- `wlyNvmrc.pollIntervalSeconds` (padrão `15`): intervalo para reavaliar a versão ativa do Node enquanto a janela está em foco (`0` desativa o polling; a checagem por foco e por mudança do `.nvmrc` continua ativa).
+- `wlyNvmrc.notifyOnMismatch` (default `true`): shows a toast when a version mismatch is detected.
+- `wlyNvmrc.pollIntervalSeconds` (default `15`): interval to re-check the active Node version while the window is focused (`0` disables polling; the focus and `.nvmrc`-change checks stay active).
 
-## Desenvolvimento
+## Development
 
 ```
 npm install
 npm run watch:esbuild
 ```
 
-Pressione `F5` no VS Code para abrir uma janela de Extension Development Host.
+Press `F5` in VS Code to open an Extension Development Host window.

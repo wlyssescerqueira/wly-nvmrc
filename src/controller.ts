@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 import { computeStatus } from './services/statusService';
 import { NvmrcStatusBar } from './ui/statusBar';
-import { NvmrcSidebarProvider } from './ui/sidebarProvider';
+import { NvmrcWebviewProvider } from './ui/webviewProvider';
 import type { NvmrcStatus } from './types';
 
 export class NvmrcController {
     readonly statusBar = new NvmrcStatusBar();
-    readonly sidebarProvider = new NvmrcSidebarProvider();
+    readonly webviewProvider = new NvmrcWebviewProvider();
 
     private status: NvmrcStatus = { kind: 'not-node-project' };
     private notifiedMismatchKey: string | null = null;
@@ -18,7 +18,7 @@ export class NvmrcController {
     async refresh(): Promise<void> {
         this.status = await computeStatus();
         this.statusBar.update(this.status);
-        this.sidebarProvider.update(this.status);
+        this.webviewProvider.update(this.status);
         this.maybeNotify();
     }
 
@@ -37,9 +37,9 @@ export class NvmrcController {
 
         const { current, required } = this.status;
         vscode.window
-            .showWarningMessage(`Node ativo (v${current}) diverge do .nvmrc (v${required}).`, 'Trocar via nvm', 'Ignorar')
+            .showWarningMessage(`Active Node (v${current}) does not match .nvmrc (v${required}).`, 'Switch via nvm', 'Ignore')
             .then((choice) => {
-                if (choice === 'Trocar via nvm') {void vscode.commands.executeCommand('wlyNvmrc.useRequiredVersion');}
+                if (choice === 'Switch via nvm') {void vscode.commands.executeCommand('wlyNvmrc.useRequiredVersion');}
             });
     }
 

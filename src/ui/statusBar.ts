@@ -1,6 +1,69 @@
 import * as vscode from 'vscode';
 import type { NvmrcStatus } from '../types';
 
+const link = (label: string, command: string): string => `[${label}](command:${command})`;
+const DIVIDER = '\n\n---\n\n';
+const PANEL_LINK = link('Open Node / .nvmrc panel', 'wlyNvmrc.view.focus');
+
+function versionTable(rows: [string, string][]): string {
+    const body = rows.map(([label, value]) => `| ${label} | ${value} |`).join('\n');
+    return `| | |\n|---|---|\n${body}`;
+}
+
+function buildTooltip(status: NvmrcStatus): vscode.MarkdownString {
+    const tooltip = new vscode.MarkdownString();
+    tooltip.isTrusted = true;
+    tooltip.supportThemeIcons = true;
+
+    switch (status.kind) {
+        case 'not-node-project':
+            tooltip.appendMarkdown('$(circle-slash) No Node project detected in this workspace.');
+            break;
+
+        case 'node-not-found':
+            tooltip.appendMarkdown('$(circle-slash) **Node.js not found**\n\nNode.js was not found on PATH.');
+            tooltip.appendMarkdown(`${DIVIDER}${PANEL_LINK}`);
+            break;
+
+        case 'no-nvmrc':
+            tooltip.appendMarkdown(link(`Create .nvmrc with v${status.current}`, 'wlyNvmrc.createNvmrc'));
+            tooltip.appendMarkdown(
+                `${DIVIDER}${versionTable([
+                    ['Active Node', `$(check) v${status.current}`],
+                    ['.nvmrc', '$(warning) Not found']
+                ])}`
+            );
+            tooltip.appendMarkdown(`${DIVIDER}${PANEL_LINK}`);
+            break;
+
+        case 'match':
+            tooltip.appendMarkdown(
+                versionTable([
+                    ['Active Node', `$(check) v${status.current}`],
+                    ['.nvmrc requires', `v${status.required}`]
+                ])
+            );
+            tooltip.appendMarkdown(`${DIVIDER}${link('Open .nvmrc', 'wlyNvmrc.openNvmrcFile')}\n${PANEL_LINK}`);
+            break;
+
+        case 'mismatch':
+            tooltip.appendMarkdown(link(`Switch to v${status.required} now (nvm use)`, 'wlyNvmrc.useRequiredVersion'));
+            tooltip.appendMarkdown(
+                `${DIVIDER}${versionTable([
+                    ['Active Node', `$(error) v${status.current}`],
+                    ['.nvmrc requires', `v${status.required}`]
+                ])}`
+            );
+            tooltip.appendMarkdown(
+                `${DIVIDER}${link(`Install v${status.required} via nvm`, 'wlyNvmrc.installRequiredVersion')}\n${link('Open .nvmrc', 'wlyNvmrc.openNvmrcFile')}`
+            );
+            tooltip.appendMarkdown(`${DIVIDER}${PANEL_LINK}`);
+            break;
+    }
+
+    return tooltip;
+}
+
 export class NvmrcStatusBar {
     private readonly item: vscode.StatusBarItem;
 
@@ -16,30 +79,27 @@ export class NvmrcStatusBar {
                 return;
 
             case 'node-not-found':
-                this.item.text = '$(circle-slash) Node não encontrado';
-                this.item.tooltip = 'Node.js não foi encontrado no PATH. Clique para ver as opções.';
+                this.item.text = '$(circle-slash) Node not found';
                 this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
 
             case 'no-nvmrc':
-                this.item.text = '$(warning) .nvmrc ausente';
-                this.item.tooltip = `Nenhum .nvmrc neste projeto (Node ativo: v${status.current}). Clique para criar.`;
+                this.item.text = '$(warning) .nvmrc missing';
                 this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
                 break;
 
             case 'match':
                 this.item.text = `$(check) Node v${status.current}`;
-                this.item.tooltip = `Versão do Node compatível com .nvmrc (requer ${status.required}).`;
                 this.item.backgroundColor = undefined;
                 break;
 
             case 'mismatch':
                 this.item.text = `$(alert) Node v${status.current} ≠ v${status.required}`;
-                this.item.tooltip = `Versão ativa (v${status.current}) diverge do .nvmrc (v${status.required}). Clique para trocar via nvm.`;
                 this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 break;
         }
 
+        this.item.tooltip = buildTooltip(status);
         this.item.show();
     }
 

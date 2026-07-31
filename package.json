@@ -42,6 +42,7 @@
         {
           "id": "wlyNvmrc.view",
           "name": "Node / .nvmrc",
+          "type": "webview",
           "when": "true"
         }
       ]

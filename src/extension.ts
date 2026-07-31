@@ -9,10 +9,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     registerCommands(context, controller);
 
-    const treeView = vscode.window.createTreeView('wlyNvmrc.view', {
-        treeDataProvider: controller.sidebarProvider
-    });
-    context.subscriptions.push(treeView);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('wlyNvmrc.view', controller.webviewProvider)
+    );
 
     const nvmrcWatcher = vscode.workspace.createFileSystemWatcher(pathNvmrc);
     nvmrcWatcher.onDidCreate(() => controller.refresh());
