@@ -1,0 +1,125 @@
+{
+  "name": "wly-nvmrc",
+  "displayName": "Wly Nvmrc - Node Version Guard",
+  "publisher": "WlyssesCerqueira",
+  "description": "Detects Node.js projects, checks the active Node version against .nvmrc and offers one-click nvm switch/install from the status bar and sidebar.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wlyssescerqueira/wly-nvmrc.git"
+  },
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "nvm",
+    "nvmrc",
+    "node",
+    "node version",
+    "angular",
+    "salesforce"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "wlyNvmrc",
+          "title": "Node / .nvmrc",
+          "icon": "images/nvmrc-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "wlyNvmrc": [
+        {
+          "id": "wlyNvmrc.view",
+          "name": "Node / .nvmrc",
+          "when": "true"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "wlyNvmrc.refresh",
+          "when": "view == wlyNvmrc.view",
+          "group": "navigation"
+        },
+        {
+          "command": "wlyNvmrc.openMenu",
+          "when": "view == wlyNvmrc.view",
+          "group": "navigation"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "wlyNvmrc.refresh",
+        "title": "Wly Nvmrc: Refresh Status",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "wlyNvmrc.openMenu",
+        "title": "Wly Nvmrc: Open Quick Menu",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "wlyNvmrc.createNvmrc",
+        "title": "Wly Nvmrc: Create .nvmrc with Current Node Version"
+      },
+      {
+        "command": "wlyNvmrc.openNvmrcFile",
+        "title": "Wly Nvmrc: Open .nvmrc"
+      },
+      {
+        "command": "wlyNvmrc.useRequiredVersion",
+        "title": "Wly Nvmrc: Switch to .nvmrc Version (nvm use)"
+      },
+      {
+        "command": "wlyNvmrc.installRequiredVersion",
+        "title": "Wly Nvmrc: Install .nvmrc Version (nvm install)"
+      }
+    ],
+    "configuration": {
+      "title": "Wly Nvmrc",
+      "properties": {
+        "wlyNvmrc.notifyOnMismatch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a warning notification when the active Node version does not match .nvmrc."
+        },
+        "wlyNvmrc.pollIntervalSeconds": {
+          "type": "number",
+          "default": 15,
+          "minimum": 0,
+          "description": "How often (in seconds) to re-check the active Node version while the window is focused. Set to 0 to disable polling (still re-checks on focus and on .nvmrc changes)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node esbuild.js --production",
+    "compile": "node esbuild.js",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch -p tsconfig.json",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  }
+}
