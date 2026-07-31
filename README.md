@@ -4,12 +4,14 @@ Avoids the "version soup" when switching between projects (plain Node, Angular/A
 
 ## What it does
 
-1. Detects whether the workspace is a Node project (`package.json`, `node_modules` or `.nvmrc`).
-2. If it is, it looks for a `.nvmrc` at the root:
+1. Detects every Node project in all open workspace folders by recursively finding `package.json` and `.nvmrc` files. Dependencies, caches and generated build directories such as `node_modules`, `.next`, `.nuxt`, `dist`, `build`, `coverage` and `out` are ignored.
+2. Each project directory has its own `.nvmrc` and status:
    - **Exists and matches** the active Node version → status bar shows `✓ Node vX.X.X`.
    - **Exists and mismatches** → status bar shows an alert and lets you switch versions via `nvm use`/`nvm install` right from the menu.
    - **Doesn't exist** → status bar warns that `.nvmrc` is missing and offers to create one with the current Node version.
-3. Everything also shows up in the sidebar view (icon in the Activity Bar) with the same actions.
+3. Click the status bar item to choose and manage a specific project.
+
+This works both when opening a project directory by itself and when opening a repository that contains several projects (for example `backend`, `frontend` and `mobile`). A root-level `package.json` is treated as its own project and does not override the versions pinned by child projects.
 
 ## Requirements
 

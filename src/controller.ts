@@ -5,13 +5,10 @@ import type { NvmrcStatus } from './types';
 
 export class NvmrcController {
     readonly statusBar = new NvmrcStatusBar();
+    private status: NvmrcStatus = { kind: 'not-node-project', projects: [] };
+    private notifiedMismatchKeys = new Set<string>();
 
-    private status: NvmrcStatus = { kind: 'not-node-project' };
-    private notifiedMismatchKey: string | null = null;
-
-    getStatus(): NvmrcStatus {
-        return this.status;
-    }
+    getStatus(): NvmrcStatus {return this.status;}
 
     async refresh(): Promise<void> {
         this.status = await computeStatus();
@@ -21,26 +18,24 @@ export class NvmrcController {
 
     private maybeNotify(): void {
         const notify = vscode.workspace.getConfiguration('wlyNvmrc').get<boolean>('notifyOnMismatch', true);
+        if (!notify || this.status.kind !== 'ready') {return;}
 
-        if (this.status.kind !== 'mismatch') {
-            this.notifiedMismatchKey = null;
-            return;
-        }
-        if (!notify) {return;}
+        const mismatches = this.status.projects.filter((project) => project.matches === false);
+        const liveKeys = new Set(mismatches.map((project) => `${project.path}:${this.status.kind === 'ready' ? this.status.current : ''}=>${project.required}`));
+        this.notifiedMismatchKeys = new Set([...this.notifiedMismatchKeys].filter((key) => liveKeys.has(key)));
 
-        const key = `${this.status.current}=>${this.status.required}`;
-        if (this.notifiedMismatchKey === key) {return;}
-        this.notifiedMismatchKey = key;
-
-        const { current, required } = this.status;
-        vscode.window
-            .showWarningMessage(`Active Node (v${current}) does not match .nvmrc (v${required}).`, 'Switch via nvm', 'Ignore')
-            .then((choice) => {
-                if (choice === 'Switch via nvm') {void vscode.commands.executeCommand('wlyNvmrc.useRequiredVersion');}
+        for (const project of mismatches) {
+            const key = `${project.path}:${this.status.current}=>${project.required}`;
+            if (this.notifiedMismatchKeys.has(key)) {continue;}
+            this.notifiedMismatchKeys.add(key);
+            void vscode.window.showWarningMessage(
+                `${project.name}: active Node v${this.status.current} does not match .nvmrc v${project.required}.`,
+                'Open menu', 'Ignore'
+            ).then((choice) => {
+                if (choice === 'Open menu') {void vscode.commands.executeCommand('wlyNvmrc.openMenu');}
             });
+        }
     }
 
-    dispose(): void {
-        this.statusBar.dispose();
-    }
+    dispose(): void {this.statusBar.dispose();}
 }

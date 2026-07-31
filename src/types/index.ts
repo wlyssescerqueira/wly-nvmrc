@@ -1,9 +1,14 @@
+export type ProjectStatus = {
+    name: string;
+    path: string;
+    required: string | null;
+    matches: boolean | null;
+};
+
 export type NvmrcStatus =
-    | { kind: 'not-node-project' }
-    | { kind: 'node-not-found'; required: string | null }
-    | { kind: 'no-nvmrc'; current: string }
-    | { kind: 'match'; current: string; required: string }
-    | { kind: 'mismatch'; current: string; required: string };
+    | { kind: 'not-node-project'; projects: [] }
+    | { kind: 'node-not-found'; projects: ProjectStatus[] }
+    | { kind: 'ready'; current: string; projects: ProjectStatus[] };
 
 export type NvmInstalledVersion = {
     version: string;

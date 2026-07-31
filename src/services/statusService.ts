@@ -1,25 +1,22 @@
-import { isNodeProject } from './nodeProjectService';
+import { findNodeProjects } from './nodeProjectService';
 import { readNvmrc, versionsMatch } from './nvmrcService';
 import { getActiveNodeVersion } from './nodeVersionService';
-import type { NvmrcStatus } from '../types';
+import type { NvmrcStatus, ProjectStatus } from '../types';
 
 export async function computeStatus(): Promise<NvmrcStatus> {
-    if (!isNodeProject()) {
-        return { kind: 'not-node-project' };
-    }
+    const discovered = await findNodeProjects();
+    if (discovered.length === 0) {return { kind: 'not-node-project', projects: [] };}
 
-    const required = readNvmrc();
     const current = await getActiveNodeVersion();
+    const projects: ProjectStatus[] = discovered.map((project) => {
+        const required = readNvmrc(project.path);
+        return {
+            name: project.name,
+            path: project.path,
+            required,
+            matches: current && required ? versionsMatch(current, required) : null
+        };
+    });
 
-    if (!current) {
-        return { kind: 'node-not-found', required };
-    }
-
-    if (!required) {
-        return { kind: 'no-nvmrc', current };
-    }
-
-    return versionsMatch(current, required)
-        ? { kind: 'match', current, required }
-        : { kind: 'mismatch', current, required };
+    return current ? { kind: 'ready', current, projects } : { kind: 'node-not-found', projects };
 }
