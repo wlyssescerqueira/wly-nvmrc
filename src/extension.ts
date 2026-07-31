@@ -9,10 +9,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
     registerCommands(context, controller);
 
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider('wlyNvmrc.view', controller.webviewProvider)
-    );
-
     const nvmrcWatcher = vscode.workspace.createFileSystemWatcher(pathNvmrc);
     nvmrcWatcher.onDidCreate(() => controller.refresh());
     nvmrcWatcher.onDidChange(() => controller.refresh());

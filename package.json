@@ -28,39 +28,6 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "wlyNvmrc",
-          "title": "Node / .nvmrc",
-          "icon": "images/nvmrc-icon.svg"
-        }
-      ]
-    },
-    "views": {
-      "wlyNvmrc": [
-        {
-          "id": "wlyNvmrc.view",
-          "name": "Node / .nvmrc",
-          "type": "webview",
-          "when": "true"
-        }
-      ]
-    },
-    "menus": {
-      "view/title": [
-        {
-          "command": "wlyNvmrc.refresh",
-          "when": "view == wlyNvmrc.view",
-          "group": "navigation"
-        },
-        {
-          "command": "wlyNvmrc.openMenu",
-          "when": "view == wlyNvmrc.view",
-          "group": "navigation"
-        }
-      ]
-    },
     "commands": [
       {
         "command": "wlyNvmrc.refresh",

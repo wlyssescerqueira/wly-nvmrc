@@ -1,12 +1,10 @@
 import * as vscode from 'vscode';
 import { computeStatus } from './services/statusService';
 import { NvmrcStatusBar } from './ui/statusBar';
-import { NvmrcWebviewProvider } from './ui/webviewProvider';
 import type { NvmrcStatus } from './types';
 
 export class NvmrcController {
     readonly statusBar = new NvmrcStatusBar();
-    readonly webviewProvider = new NvmrcWebviewProvider();
 
     private status: NvmrcStatus = { kind: 'not-node-project' };
     private notifiedMismatchKey: string | null = null;
@@ -18,7 +16,6 @@ export class NvmrcController {
     async refresh(): Promise<void> {
         this.status = await computeStatus();
         this.statusBar.update(this.status);
-        this.webviewProvider.update(this.status);
         this.maybeNotify();
     }
 

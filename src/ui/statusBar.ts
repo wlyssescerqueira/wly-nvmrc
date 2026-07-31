@@ -3,7 +3,6 @@ import type { NvmrcStatus } from '../types';
 
 const link = (label: string, command: string): string => `[${label}](command:${command})`;
 const DIVIDER = '\n\n---\n\n';
-const PANEL_LINK = link('Open Node / .nvmrc panel', 'wlyNvmrc.view.focus');
 
 function versionTable(rows: [string, string][]): string {
     const body = rows.map(([label, value]) => `| ${label} | ${value} |`).join('\n');
@@ -22,7 +21,6 @@ function buildTooltip(status: NvmrcStatus): vscode.MarkdownString {
 
         case 'node-not-found':
             tooltip.appendMarkdown('$(circle-slash) **Node.js not found**\n\nNode.js was not found on PATH.');
-            tooltip.appendMarkdown(`${DIVIDER}${PANEL_LINK}`);
             break;
 
         case 'no-nvmrc':
@@ -33,7 +31,6 @@ function buildTooltip(status: NvmrcStatus): vscode.MarkdownString {
                     ['.nvmrc', '$(warning) Not found']
                 ])}`
             );
-            tooltip.appendMarkdown(`${DIVIDER}${PANEL_LINK}`);
             break;
 
         case 'match':
@@ -43,7 +40,7 @@ function buildTooltip(status: NvmrcStatus): vscode.MarkdownString {
                     ['.nvmrc requires', `v${status.required}`]
                 ])
             );
-            tooltip.appendMarkdown(`${DIVIDER}${link('Open .nvmrc', 'wlyNvmrc.openNvmrcFile')}\n${PANEL_LINK}`);
+            tooltip.appendMarkdown(`${DIVIDER}${link('Open .nvmrc', 'wlyNvmrc.openNvmrcFile')}`);
             break;
 
         case 'mismatch':
@@ -57,7 +54,6 @@ function buildTooltip(status: NvmrcStatus): vscode.MarkdownString {
             tooltip.appendMarkdown(
                 `${DIVIDER}${link(`Install v${status.required} via nvm`, 'wlyNvmrc.installRequiredVersion')}\n${link('Open .nvmrc', 'wlyNvmrc.openNvmrcFile')}`
             );
-            tooltip.appendMarkdown(`${DIVIDER}${PANEL_LINK}`);
             break;
     }
 
