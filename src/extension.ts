@@ -31,7 +31,13 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('wlyNvmrc.pollIntervalSeconds')) {restartPolling();}
     }));
+
     void controller.refresh();
+    // The first findFiles() right after startup can race VS Code's file
+    // index and come back empty on large/slow workspaces. Re-check shortly
+    // after so the cached status self-corrects before a user opens the menu.
+    const warmupTimer = setTimeout(() => void controller.refresh(), 3000);
+    context.subscriptions.push({ dispose: () => clearTimeout(warmupTimer) });
 }
 
 export function deactivate(): void { }
