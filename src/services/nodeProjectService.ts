@@ -36,8 +36,26 @@ export async function findNodeProjects(): Promise<NodeProject[]> {
     const generatedDirectories = '**/{node_modules,.next,.nuxt,.output,.vscode-test,dist,build,coverage,out}/**';
 
     for (const folder of folders) {
-        const pattern = new vscode.RelativePattern(folder, '**/{package.json,.nvmrc}');
-        const files = await vscode.workspace.findFiles(pattern, generatedDirectories);
+        // Check root markers directly. Besides being faster for the common case,
+        // this does not depend on the workspace search index being ready or on
+        // brace globs treating dotfiles consistently across VS Code versions.
+        const rootMarkers = ['package.json', '.nvmrc'].map((name) => vscode.Uri.joinPath(folder.uri, name));
+        const rootFiles = (await Promise.all(rootMarkers.map(async (file) => {
+            try {
+                const stat = await vscode.workspace.fs.stat(file);
+                return stat.type === vscode.FileType.File ? file : null;
+            } catch {
+                return null;
+            }
+        }))).filter((file): file is vscode.Uri => file !== null);
+
+        // Keep the patterns separate: some VS Code/file-search combinations do
+        // not return a root .nvmrc from a brace expression containing dotfiles.
+        const nestedFiles = (await Promise.all([
+            vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/package.json'), generatedDirectories),
+            vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/.nvmrc'), generatedDirectories)
+        ])).flat();
+        const files = [...rootFiles, ...nestedFiles];
 
         for (const file of files) {
             // Keep the result safe even when a VS Code/glob version does not apply
