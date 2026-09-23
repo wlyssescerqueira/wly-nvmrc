@@ -22,7 +22,8 @@ const ignoredDirectoryNames = new Set([
 
 function isGeneratedOrInternal(file: vscode.Uri, folder: vscode.WorkspaceFolder): boolean {
     const relativePath = path.relative(folder.uri.fsPath, file.fsPath);
-    const directorySegments = path.dirname(relativePath).split(path.sep).filter(Boolean);
+    // A root file yields dirname '.', which must not count as a dot-directory.
+    const directorySegments = path.dirname(relativePath).split(path.sep).filter((segment) => segment && segment !== '.');
     return directorySegments.some((segment) => ignoredDirectoryNames.has(segment) || segment.startsWith('.'));
 }
 
