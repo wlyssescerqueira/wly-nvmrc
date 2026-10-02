@@ -2,6 +2,8 @@ export type ProjectStatus = {
     name: string;
     path: string;
     required: string | null;
+    /** Where `required` came from: a .nvmrc file or package.json "engines.node". */
+    source: 'nvmrc' | 'engines' | null;
     matches: boolean | null;
 };
 

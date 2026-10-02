@@ -9,9 +9,9 @@ function buildTooltip(status: NvmrcStatus): vscode.MarkdownString {
     } else if (status.kind === 'ready') {
         tooltip.appendMarkdown(`**Active Node:** v${status.current}\n\n`);
     }
-    tooltip.appendMarkdown('| Project | .nvmrc | Status |\n|---|---|---|\n');
+    tooltip.appendMarkdown('| Project | Required | Status |\n|---|---|---|\n');
     for (const project of status.projects) {
-        const required = project.required ? `v${project.required}` : 'missing';
+        const required = !project.required ? 'missing' : project.source === 'engines' ? `v${project.required} (engines)` : `v${project.required}`;
         const state = project.matches === true ? '$(check) match' : project.matches === false ? '$(error) mismatch' : '$(warning) —';
         tooltip.appendMarkdown(`| ${project.name} | ${required} | ${state} |\n`);
     }

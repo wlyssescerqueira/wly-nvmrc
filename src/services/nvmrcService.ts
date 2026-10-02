@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { pathNvmrc } from '../config/paths';
 
 export function nvmrcExists(projectPath: string): boolean {
@@ -10,6 +11,21 @@ export function readNvmrc(projectPath: string): string | null {
     try {
         const content = fs.readFileSync(pathNvmrc(projectPath), 'utf8').trim();
         return content || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Reads an exact Node version from package.json "engines.node" (e.g. "22.18.0",
+ * "v22", "=20.15.1"). Ranges such as ">=18" or "^20" are ignored because they
+ * cannot be passed to `nvm use`.
+ */
+export function readEnginesNode(projectPath: string): string | null {
+    try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(projectPath, 'package.json'), 'utf8'));
+        const engine = typeof pkg?.engines?.node === 'string' ? pkg.engines.node.trim().replace(/^=+/, '') : '';
+        return /^v?\d+(\.\d+){0,2}$/i.test(engine) ? normalizeVersion(engine) : null;
     } catch {
         return null;
     }

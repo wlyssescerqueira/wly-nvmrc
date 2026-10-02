@@ -1,5 +1,5 @@
 import { findNodeProjects } from './nodeProjectService';
-import { readNvmrc, versionsMatch } from './nvmrcService';
+import { readEnginesNode, readNvmrc, versionsMatch } from './nvmrcService';
 import { getActiveNodeVersion } from './nodeVersionService';
 import { log } from '../utils/output';
 import type { NvmrcStatus, ProjectStatus } from '../types';
@@ -15,12 +15,16 @@ export async function computeStatus(): Promise<NvmrcStatus> {
     log(`[computeStatus] active Node version: ${current ?? '(not found)'}`);
 
     const projects: ProjectStatus[] = discovered.map((project) => {
-        const required = readNvmrc(project.path);
-        log(`[computeStatus] project "${project.name}" (${project.path}) required=${required ?? '(no .nvmrc)'}`);
+        const nvmrc = readNvmrc(project.path);
+        const engines = nvmrc ? null : readEnginesNode(project.path);
+        const required = nvmrc ?? engines;
+        const source = nvmrc ? 'nvmrc' : engines ? 'engines' : null;
+        log(`[computeStatus] project "${project.name}" (${project.path}) required=${required ?? '(no .nvmrc / engines.node)'} source=${source ?? '-'}`);
         return {
             name: project.name,
             path: project.path,
             required,
+            source,
             matches: current && required ? versionsMatch(current, required) : null
         };
     });

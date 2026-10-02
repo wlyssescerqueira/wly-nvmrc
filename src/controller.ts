@@ -29,7 +29,7 @@ export class NvmrcController {
             if (this.notifiedMismatchKeys.has(key)) {continue;}
             this.notifiedMismatchKeys.add(key);
             void vscode.window.showWarningMessage(
-                `${project.name}: active Node v${this.status.current} does not match .nvmrc v${project.required}.`,
+                `${project.name}: active Node v${this.status.current} does not match ${project.source === 'engines' ? 'package.json engines' : '.nvmrc'} v${project.required}.`,
                 'Open menu', 'Ignore'
             ).then((choice) => {
                 if (choice === 'Open menu') {void vscode.commands.executeCommand('wlyNvmrc.openMenu');}

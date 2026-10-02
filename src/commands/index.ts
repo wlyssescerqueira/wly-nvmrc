@@ -8,6 +8,11 @@ import { pathNvmrc } from '../config/paths';
 import { toast } from '../utils/output';
 import type { ProjectStatus } from '../types';
 
+function requirementLabel(project: ProjectStatus): string {
+    if (!project.required) {return '.nvmrc missing';}
+    return project.source === 'engines' ? `requires v${project.required} (package.json engines)` : `requires v${project.required}`;
+}
+
 function projects(controller: NvmrcController): ProjectStatus[] {return controller.getStatus().projects;}
 
 async function chooseProject(controller: NvmrcController, placeHolder: string): Promise<ProjectStatus | undefined> {
@@ -17,7 +22,7 @@ async function chooseProject(controller: NvmrcController, placeHolder: string): 
         available.map((project) => ({
             label: project.name,
             description: vscode.workspace.asRelativePath(project.path),
-            detail: project.required ? `.nvmrc: v${project.required}` : '.nvmrc missing',
+            detail: requirementLabel(project),
             project
         })),
         { placeHolder, ignoreFocusOut: true }
@@ -28,7 +33,7 @@ async function createNvmrc(controller: NvmrcController, selected?: ProjectStatus
     const project = selected ?? await chooseProject(controller, 'Choose the project that will receive .nvmrc');
     if (!project) {return;}
     const status = controller.getStatus();
-    const suggested = status.kind === 'ready' ? status.current : await getActiveNodeVersion();
+    const suggested = project.required ?? (status.kind === 'ready' ? status.current : await getActiveNodeVersion());
     if (!suggested) {toast('Could not detect the active Node version to suggest for .nvmrc.', 'warn'); return;}
     const version = await vscode.window.showInputBox({
         title: `Create .nvmrc — ${project.name}`,
@@ -42,9 +47,9 @@ async function createNvmrc(controller: NvmrcController, selected?: ProjectStatus
 }
 
 async function openNvmrcFile(controller: NvmrcController, selected?: ProjectStatus): Promise<void> {
-    const candidates = projects(controller).filter((project) => project.required);
+    const candidates = projects(controller).filter((project) => project.source === 'nvmrc');
     const project = selected ?? (candidates.length === 1 ? candidates[0] : await chooseProject(controller, 'Choose a project'));
-    if (!project?.required) {toast('No .nvmrc file found for this project.', 'warn'); return;}
+    if (project?.source !== 'nvmrc') {toast('No .nvmrc file found for this project.', 'warn'); return;}
     const doc = await vscode.workspace.openTextDocument(pathNvmrc(project.path));
     await vscode.window.showTextDocument(doc);
 }
@@ -57,7 +62,7 @@ async function requireNvm(): Promise<boolean> {
 
 async function useRequiredVersion(controller: NvmrcController, selected?: ProjectStatus): Promise<void> {
     const project = selected ?? await chooseProject(controller, 'Choose the project version to activate');
-    if (!project?.required) {toast('No version required by .nvmrc to use.', 'warn'); return;}
+    if (!project?.required) {toast('No version required by .nvmrc or package.json engines to use.', 'warn'); return;}
     if (!(await requireNvm())) {return;}
     try {
         await vscode.window.withProgress(
@@ -75,7 +80,7 @@ async function useRequiredVersion(controller: NvmrcController, selected?: Projec
 
 async function installRequiredVersion(controller: NvmrcController, selected?: ProjectStatus): Promise<void> {
     const project = selected ?? await chooseProject(controller, 'Choose the project version to install');
-    if (!project?.required) {toast('No version required by .nvmrc to install.', 'warn'); return;}
+    if (!project?.required) {toast('No version required by .nvmrc or package.json engines to install.', 'warn'); return;}
     if (!(await requireNvm())) {return;}
     try {
         await vscode.window.withProgress(
@@ -100,7 +105,9 @@ async function openProjectMenu(controller: NvmrcController, project: ProjectStat
     } else {
         picks.push({ label: `$(sync) Use v${project.required} (nvm use)`, action: () => useRequiredVersion(controller, project) });
         picks.push({ label: `$(cloud-download) Install v${project.required} (nvm install)`, action: () => installRequiredVersion(controller, project) });
-        picks.push({ label: '$(go-to-file) Open .nvmrc', action: () => openNvmrcFile(controller, project) });
+        picks.push(project.source === 'nvmrc'
+            ? { label: '$(go-to-file) Open .nvmrc', action: () => openNvmrcFile(controller, project) }
+            : { label: `$(add) Create .nvmrc with v${project.required} (from engines)`, action: () => createNvmrc(controller, project) });
     }
     const selection = await vscode.window.showQuickPick(picks, {
         title: project.name,
@@ -114,7 +121,7 @@ async function openMenu(controller: NvmrcController): Promise<void> {
     if (status.kind === 'not-node-project') {toast('No Node project detected in this workspace.', 'warn'); return;}
     const picks = status.projects.map((project) => ({
         label: project.matches === false ? `$(error) ${project.name}` : project.required ? `$(check) ${project.name}` : `$(warning) ${project.name}`,
-        description: project.required ? `requires v${project.required}` : '.nvmrc missing',
+        description: requirementLabel(project),
         detail: path.normalize(project.path), project
     }));
     const selection = await vscode.window.showQuickPick(picks, {
