@@ -46,6 +46,17 @@ async function createNvmrc(controller: NvmrcController, selected?: ProjectStatus
     await controller.refresh();
 }
 
+async function pinCurrentVersion(controller: NvmrcController, targets: ProjectStatus[]): Promise<void> {
+    const status = controller.getStatus();
+    const current = status.kind === 'ready' ? status.current : await getActiveNodeVersion();
+    if (!current) {toast('Could not detect the active Node version.', 'warn'); return;}
+    for (const project of targets) {writeNvmrc(project.path, current);}
+    toast(targets.length === 1
+        ? `${targets[0].name}: .nvmrc set to v${current}.`
+        : `.nvmrc set to v${current} in ${targets.length} projects: ${targets.map((project) => project.name).join(', ')}.`);
+    await controller.refresh();
+}
+
 async function openNvmrcFile(controller: NvmrcController, selected?: ProjectStatus): Promise<void> {
     const candidates = projects(controller).filter((project) => project.source === 'nvmrc');
     const project = selected ?? (candidates.length === 1 ? candidates[0] : await chooseProject(controller, 'Choose a project'));
@@ -103,6 +114,10 @@ async function openProjectMenu(controller: NvmrcController, project: ProjectStat
     if (!project.required) {
         picks.push({ label: '$(add) Create .nvmrc with the current version', action: () => createNvmrc(controller, project) });
     } else {
+        const status = controller.getStatus();
+        if (status.kind === 'ready' && project.matches === false) {
+            picks.push({ label: `$(pin) Set .nvmrc to current v${status.current}`, action: () => pinCurrentVersion(controller, [project]) });
+        }
         picks.push({ label: `$(sync) Use v${project.required} (nvm use)`, action: () => useRequiredVersion(controller, project) });
         picks.push({ label: `$(cloud-download) Install v${project.required} (nvm install)`, action: () => installRequiredVersion(controller, project) });
         picks.push(project.source === 'nvmrc'
@@ -119,15 +134,25 @@ async function openProjectMenu(controller: NvmrcController, project: ProjectStat
 async function openMenu(controller: NvmrcController): Promise<void> {
     const status = controller.getStatus();
     if (status.kind === 'not-node-project') {toast('No Node project detected in this workspace.', 'warn'); return;}
-    const picks = status.projects.map((project) => ({
+    type Pick = vscode.QuickPickItem & { project?: ProjectStatus; pinAll?: ProjectStatus[] };
+    const picks: Pick[] = status.projects.map((project) => ({
         label: project.matches === false ? `$(error) ${project.name}` : project.required ? `$(check) ${project.name}` : `$(warning) ${project.name}`,
         description: requirementLabel(project),
         detail: path.normalize(project.path), project
     }));
+    const mismatched = status.projects.filter((project) => project.matches === false);
+    if (status.kind === 'ready' && mismatched.length > 1) {
+        picks.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+        picks.push({
+            label: `$(pin) Set .nvmrc to current v${status.current} in all ${mismatched.length} mismatched projects`,
+            detail: mismatched.map((project) => project.name).join(', '), pinAll: mismatched
+        });
+    }
     const selection = await vscode.window.showQuickPick(picks, {
         placeHolder: 'Choose a Node project to manage', ignoreFocusOut: true
     });
-    if (selection) {await openProjectMenu(controller, selection.project);}
+    if (selection?.pinAll) {await pinCurrentVersion(controller, selection.pinAll);}
+    else if (selection?.project) {await openProjectMenu(controller, selection.project);}
 }
 
 export function registerCommands(context: vscode.ExtensionContext, controller: NvmrcController): void {
