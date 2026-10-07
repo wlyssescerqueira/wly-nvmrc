@@ -33,8 +33,11 @@ function statusSection(status: NvmrcStatus): string {
 function scriptsSection(projects: FooterProject[]): string {
     const entries: string[] = [];
     const multiple = projects.length > 1;
-    for (const project of projects) {
-        if (multiple) {entries.push(`$(json) \`${project.label}\``);}
+    projects.forEach((project, index) => {
+        if (multiple) {
+            if (index > 0) {entries.push('---');}
+            entries.push(`$(json) **${project.label.replace(/[\\`*_[\]]/g, '\\$&')}**`);
+        }
         for (const item of project.scripts) {
             const ref = { dir: item.dir, script: item.script };
             const ports = item.ports.length ? ` \`${item.ports.map((port) => `:${port}`).join(' ')}\`` : '';
@@ -42,7 +45,7 @@ function scriptsSection(projects: FooterProject[]): string {
                 ? `$(sync~spin) **${item.script}**${ports} — ${link('$(debug-restart) Restart', 'wlyNvmrc.scripts.restart', [ref])} · ${link('$(debug-stop) Stop', 'wlyNvmrc.scripts.stop', [ref])}`
                 : `${link(`$(play) ${item.script}`, 'wlyNvmrc.scripts.run', [ref])}${ports}`);
         }
-    }
+    });
     entries.push(link('$(list-unordered) Run another script…', 'wlyNvmrc.scripts.run'));
     return section('$(tools) **Scripts**', entries);
 }
