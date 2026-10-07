@@ -6,6 +6,7 @@ import { revealScript } from '../services/scriptsService';
 import { detectScriptPorts, findPortListeners, killProcess, waitForPortsFree } from '../services/portService';
 import { isNvmAvailable, useVersion } from '../services/nvmService';
 import { log, toast } from '../utils/output';
+import type { FooterProject } from '../ui/statusBar';
 
 function setting<T>(name: string, fallback: T): T {
     return vscode.workspace.getConfiguration('wlyNvmrc.scripts').get<T>(name, fallback);
@@ -106,20 +107,55 @@ async function pickScript(tree: ScriptsTreeProvider): Promise<ScriptNode | undef
     return (await vscode.window.showQuickPick(items, { placeHolder: 'Choose a script to run', matchOnDescription: true, matchOnDetail: true }))?.node;
 }
 
+/** Plain-JSON reference used by the status bar's command links. */
+type ScriptRef = { dir: string; script: string };
+
+async function resolveScript(tree: ScriptsTreeProvider, arg: ScriptNode | ScriptRef | undefined): Promise<ScriptNode | undefined> {
+    if (!arg) {return pickScript(tree);}
+    if ('project' in arg) {return arg;}
+    const project = (await tree.getProjects()).find((item) => item.dir.toLowerCase() === arg.dir.toLowerCase());
+    const command = project?.scripts[arg.script];
+    return project && command !== undefined ? { kind: 'script', project, script: arg.script, command } : undefined;
+}
+
+/** Mirrors the scripts (servers and running ones) into the status bar menu. */
+async function syncFooter(controller: NvmrcController, tree: ScriptsTreeProvider, runner: ScriptRunner): Promise<void> {
+    const projects: FooterProject[] = (await tree.getProjects()).map((project) => ({
+        label: project.label,
+        scripts: Object.keys(project.scripts).map((script) => ({
+            dir: project.dir, script,
+            ports: detectScriptPorts(project.dir, script),
+            running: runner.isRunning(project.dir, script)
+        })).filter((script) => script.running || script.ports.length > 0)
+    })).filter((project) => project.scripts.length > 0);
+    controller.statusBar.setScripts(projects);
+}
+
 export function registerScriptCommands(context: vscode.ExtensionContext, controller: NvmrcController): ScriptsTreeProvider {
     const runner = new ScriptRunner();
     const tree = new ScriptsTreeProvider(controller, runner);
+    const footer = () => void syncFooter(controller, tree, runner);
     context.subscriptions.push(
         runner, tree,
+        tree.onDidChangeTreeData(footer),
         vscode.window.registerTreeDataProvider('wlyNvmrc.scripts', tree),
         vscode.commands.registerCommand('wlyNvmrc.scripts.refresh', () => tree.reload()),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.run', async (node?: ScriptNode) => {
-            const target = node ?? await pickScript(tree);
+        vscode.commands.registerCommand('wlyNvmrc.scripts.run', async (arg?: ScriptNode | ScriptRef) => {
+            const target = await resolveScript(tree, arg);
             if (target) {await runScript(controller, runner, target);}
         }),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.stop', (node: ScriptNode) => runner.stop(node.project.dir, node.script)),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.restart', (node: ScriptNode) => restartScript(runner, node)),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.open', (node: ScriptNode) => revealScript(node.project, node.script)),
+        vscode.commands.registerCommand('wlyNvmrc.scripts.stop', async (arg: ScriptNode | ScriptRef) => {
+            const target = await resolveScript(tree, arg);
+            if (target) {await runner.stop(target.project.dir, target.script);}
+        }),
+        vscode.commands.registerCommand('wlyNvmrc.scripts.restart', async (arg: ScriptNode | ScriptRef) => {
+            const target = await resolveScript(tree, arg);
+            if (target) {await restartScript(runner, target);}
+        }),
+        vscode.commands.registerCommand('wlyNvmrc.scripts.open', async (arg: ScriptNode | ScriptRef) => {
+            const target = await resolveScript(tree, arg);
+            if (target) {await revealScript(target.project, target.script);}
+        }),
         vscode.commands.registerCommand('wlyNvmrc.scripts.openPackageJson', (node: ProjectNode) => vscode.window.showTextDocument(node.project.packageJson)),
         vscode.commands.registerCommand('wlyNvmrc.scripts.install', async (node: ProjectNode) => {
             const task = new vscode.Task(
@@ -129,5 +165,6 @@ export function registerScriptCommands(context: vscode.ExtensionContext, control
             await vscode.tasks.executeTask(task);
         })
     );
+    footer();
     return tree;
 }
