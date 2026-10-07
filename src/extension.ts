@@ -1,22 +1,31 @@
 import * as vscode from 'vscode';
 import { NvmrcController } from './controller';
 import { registerCommands } from './commands/index';
+import { registerScriptCommands } from './commands/scripts';
 
 export function activate(context: vscode.ExtensionContext): void {
     const controller = new NvmrcController();
     context.subscriptions.push(controller);
     registerCommands(context, controller);
+    const scriptsTree = registerScriptCommands(context, controller);
 
     for (const glob of ['**/.nvmrc', '**/package.json']) {
         const watcher = vscode.workspace.createFileSystemWatcher(glob);
-        watcher.onDidCreate(() => void controller.refresh());
-        watcher.onDidChange(() => void controller.refresh());
-        watcher.onDidDelete(() => void controller.refresh());
+        const onFileEvent = () => {
+            void controller.refresh();
+            scriptsTree.reload();
+        };
+        watcher.onDidCreate(onFileEvent);
+        watcher.onDidChange(onFileEvent);
+        watcher.onDidDelete(onFileEvent);
         context.subscriptions.push(watcher);
     }
 
     context.subscriptions.push(
-        vscode.workspace.onDidChangeWorkspaceFolders(() => void controller.refresh()),
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            void controller.refresh();
+            scriptsTree.reload();
+        }),
         vscode.window.onDidChangeWindowState((state) => {if (state.focused) {void controller.refresh();}})
     );
 

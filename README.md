@@ -13,6 +13,17 @@ Avoids the "version soup" when switching between projects (plain Node, Angular/A
 
 This works both when opening a project directory by itself and when opening a repository that contains several projects (for example `backend`, `frontend` and `mobile`). A root-level `package.json` is treated as its own project and does not override the versions pinned by child projects.
 
+## Wly Scripts view
+
+The Explorer gets a **Wly Scripts** view, similar to the built-in NPM Scripts view: one node per `package.json` (with its required Node version) and its scripts underneath. Click a script to jump to it in `package.json`; use the ▶ button to run it as a task.
+
+Before running, the extension:
+
+1. **Checks the Node version** — if the project's `.nvmrc`/`engines` doesn't match the active Node, offers to `nvm use` and run, or run anyway.
+2. **Checks the ports** — detects the ports the script will listen on and, if any is busy, shows which process holds it and asks to **Kill and start** / **Start anyway**.
+
+Ports are detected from explicit flags (`--port 3000`, `-p 3000`, `PORT=3000`), framework config/defaults (Next, Vite, Angular, CRA, Nuxt, Astro, Expo, Storybook, webpack-dev-server…), the project's `.env` `PORT` and `process.env.PORT || 3011` fallbacks in the server entry file. Delegating scripts are followed (`npm run dev --prefix backend`, `cd x && npm run y`, `node scripts/dev.cjs` that spawns `npm run dev` in sibling packages), so a root `dev` checks every port it starts. Running scripts show a spinner with Restart/Stop buttons.
+
 ## Requirements
 
 - [nvm-windows](https://github.com/coreybutler/nvm-windows) installed and on PATH to use the "nvm use" / "nvm install" actions. Without nvm, the extension still detects and flags mismatches, it just can't switch the version automatically.
@@ -21,6 +32,9 @@ This works both when opening a project directory by itself and when opening a re
 
 - `wlyNvmrc.notifyOnMismatch` (default `true`): shows a toast when a version mismatch is detected.
 - `wlyNvmrc.pollIntervalSeconds` (default `15`): interval to re-check the active Node version while the window is focused (`0` disables polling; the focus and `.nvmrc`-change checks stay active).
+
+- `wlyNvmrc.scripts.checkPorts` (default `true`): check busy ports before running a script.
+- `wlyNvmrc.scripts.checkNodeVersion` (default `true`): check the Node version before running a script.
 
 ## Development
 

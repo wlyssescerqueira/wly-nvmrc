@@ -54,6 +54,48 @@
       {
         "command": "wlyNvmrc.installRequiredVersion",
         "title": "Wlytech - nvmrc: Install .nvmrc Version (nvm install)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.refresh",
+        "title": "Refresh Scripts",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.run",
+        "title": "Run Script",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(play)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.stop",
+        "title": "Stop Script",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.restart",
+        "title": "Restart Script",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.open",
+        "title": "Open Script Definition",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.openPackageJson",
+        "title": "Open package.json",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.install",
+        "title": "Install Dependencies",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(cloud-download)"
       }
     ],
     "configuration": {
@@ -69,9 +111,127 @@
           "default": 15,
           "minimum": 0,
           "description": "How often (in seconds) to re-check the active Node version while the window is focused. Set to 0 to disable polling (still re-checks on focus and on .nvmrc changes)."
+        },
+        "wlyNvmrc.scripts.checkPorts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Before running a script, detect the ports it listens on and offer to kill whatever process is already using them."
+        },
+        "wlyNvmrc.scripts.checkNodeVersion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Before running a script, warn when the active Node version does not match the project .nvmrc / engines and offer to switch with nvm."
         }
       }
-    }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "wlyNvmrc.scripts",
+          "name": "Wly Scripts",
+          "when": "wlyNvmrc.hasScripts"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "wlyNvmrc.scripts.refresh",
+          "when": "view == wlyNvmrc.scripts",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "wlyNvmrc.scripts.run",
+          "when": "view == wlyNvmrc.scripts && viewItem == wlyScript",
+          "group": "inline"
+        },
+        {
+          "command": "wlyNvmrc.scripts.restart",
+          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptRunning",
+          "group": "inline@1"
+        },
+        {
+          "command": "wlyNvmrc.scripts.stop",
+          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptRunning",
+          "group": "inline@2"
+        },
+        {
+          "command": "wlyNvmrc.scripts.run",
+          "when": "view == wlyNvmrc.scripts && viewItem =~ /^wlyScript/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "wlyNvmrc.scripts.open",
+          "when": "view == wlyNvmrc.scripts && viewItem =~ /^wlyScript/",
+          "group": "2_open@1"
+        },
+        {
+          "command": "wlyNvmrc.scripts.install",
+          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptsProject",
+          "group": "inline"
+        },
+        {
+          "command": "wlyNvmrc.scripts.openPackageJson",
+          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptsProject",
+          "group": "1_open@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "wlyNvmrc.scripts.stop",
+          "when": "false"
+        },
+        {
+          "command": "wlyNvmrc.scripts.restart",
+          "when": "false"
+        },
+        {
+          "command": "wlyNvmrc.scripts.open",
+          "when": "false"
+        },
+        {
+          "command": "wlyNvmrc.scripts.openPackageJson",
+          "when": "false"
+        },
+        {
+          "command": "wlyNvmrc.scripts.install",
+          "when": "false"
+        }
+      ]
+    },
+    "taskDefinitions": [
+      {
+        "type": "wlyNvmrc-script",
+        "required": [
+          "script",
+          "path"
+        ],
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "package.json script name"
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory containing package.json"
+          }
+        }
+      },
+      {
+        "type": "wlyNvmrc-install",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory containing package.json"
+          }
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
