@@ -84,18 +84,6 @@
         "title": "Open Script Definition",
         "category": "Wlytech - nvmrc",
         "icon": "$(go-to-file)"
-      },
-      {
-        "command": "wlyNvmrc.scripts.openPackageJson",
-        "title": "Open package.json",
-        "category": "Wlytech - nvmrc",
-        "icon": "$(go-to-file)"
-      },
-      {
-        "command": "wlyNvmrc.scripts.install",
-        "title": "Install Dependencies",
-        "category": "Wlytech - nvmrc",
-        "icon": "$(cloud-download)"
       }
     ],
     "configuration": {
@@ -124,60 +112,7 @@
         }
       }
     },
-    "views": {
-      "explorer": [
-        {
-          "id": "wlyNvmrc.scripts",
-          "name": "Wly Scripts",
-          "when": "wlyNvmrc.hasScripts"
-        }
-      ]
-    },
     "menus": {
-      "view/title": [
-        {
-          "command": "wlyNvmrc.scripts.refresh",
-          "when": "view == wlyNvmrc.scripts",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "wlyNvmrc.scripts.run",
-          "when": "view == wlyNvmrc.scripts && viewItem == wlyScript",
-          "group": "inline"
-        },
-        {
-          "command": "wlyNvmrc.scripts.restart",
-          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptRunning",
-          "group": "inline@1"
-        },
-        {
-          "command": "wlyNvmrc.scripts.stop",
-          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptRunning",
-          "group": "inline@2"
-        },
-        {
-          "command": "wlyNvmrc.scripts.run",
-          "when": "view == wlyNvmrc.scripts && viewItem =~ /^wlyScript/",
-          "group": "1_run@1"
-        },
-        {
-          "command": "wlyNvmrc.scripts.open",
-          "when": "view == wlyNvmrc.scripts && viewItem =~ /^wlyScript/",
-          "group": "2_open@1"
-        },
-        {
-          "command": "wlyNvmrc.scripts.install",
-          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptsProject",
-          "group": "inline"
-        },
-        {
-          "command": "wlyNvmrc.scripts.openPackageJson",
-          "when": "view == wlyNvmrc.scripts && viewItem == wlyScriptsProject",
-          "group": "1_open@1"
-        }
-      ],
       "commandPalette": [
         {
           "command": "wlyNvmrc.scripts.stop",
@@ -189,14 +124,6 @@
         },
         {
           "command": "wlyNvmrc.scripts.open",
-          "when": "false"
-        },
-        {
-          "command": "wlyNvmrc.scripts.openPackageJson",
-          "when": "false"
-        },
-        {
-          "command": "wlyNvmrc.scripts.install",
           "when": "false"
         }
       ]
@@ -213,18 +140,6 @@
             "type": "string",
             "description": "package.json script name"
           },
-          "path": {
-            "type": "string",
-            "description": "Directory containing package.json"
-          }
-        }
-      },
-      {
-        "type": "wlyNvmrc-install",
-        "required": [
-          "path"
-        ],
-        "properties": {
           "path": {
             "type": "string",
             "description": "Directory containing package.json"

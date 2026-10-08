@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { NvmrcController } from '../controller';
-import { ScriptsTreeProvider, type ProjectNode, type ScriptNode } from '../ui/scriptsTree';
+import { ScriptCatalog, type ScriptNode } from '../services/scriptCatalog';
 import { ScriptRunner } from '../services/scriptRunner';
 import { revealScript } from '../services/scriptsService';
 import { detectScriptPorts, findPortListeners, killProcess, waitForPortsFree } from '../services/portService';
@@ -98,8 +98,8 @@ async function restartScript(runner: ScriptRunner, node: ScriptNode): Promise<vo
     await runner.start(node.project, node.script);
 }
 
-async function pickScript(tree: ScriptsTreeProvider): Promise<ScriptNode | undefined> {
-    const items = (await tree.getProjects()).flatMap((project) => Object.entries(project.scripts).map(([script, command]) => ({
+async function pickScript(catalog: ScriptCatalog): Promise<ScriptNode | undefined> {
+    const items = (await catalog.getProjects()).flatMap((project) => Object.entries(project.scripts).map(([script, command]) => ({
         label: script, description: project.label, detail: command,
         node: { kind: 'script', project, script, command } as ScriptNode
     })));
@@ -110,17 +110,17 @@ async function pickScript(tree: ScriptsTreeProvider): Promise<ScriptNode | undef
 /** Plain-JSON reference used by the status bar's command links. */
 type ScriptRef = { dir: string; script: string };
 
-async function resolveScript(tree: ScriptsTreeProvider, arg: ScriptNode | ScriptRef | undefined): Promise<ScriptNode | undefined> {
-    if (!arg) {return pickScript(tree);}
+async function resolveScript(catalog: ScriptCatalog, arg: ScriptNode | ScriptRef | undefined): Promise<ScriptNode | undefined> {
+    if (!arg) {return pickScript(catalog);}
     if ('project' in arg) {return arg;}
-    const project = (await tree.getProjects()).find((item) => item.dir.toLowerCase() === arg.dir.toLowerCase());
+    const project = (await catalog.getProjects()).find((item) => item.dir.toLowerCase() === arg.dir.toLowerCase());
     const command = project?.scripts[arg.script];
     return project && command !== undefined ? { kind: 'script', project, script: arg.script, command } : undefined;
 }
 
 /** Mirrors the scripts (servers and running ones) into the status bar menu. */
-async function syncFooter(controller: NvmrcController, tree: ScriptsTreeProvider, runner: ScriptRunner): Promise<void> {
-    const projects: FooterProject[] = (await tree.getProjects()).map((project) => ({
+async function syncFooter(controller: NvmrcController, catalog: ScriptCatalog, runner: ScriptRunner): Promise<void> {
+    const projects: FooterProject[] = (await catalog.getProjects()).map((project) => ({
         label: project.label,
         scripts: Object.keys(project.scripts).map((script) => ({
             dir: project.dir, script,
@@ -131,40 +131,31 @@ async function syncFooter(controller: NvmrcController, tree: ScriptsTreeProvider
     controller.statusBar.setScripts(projects);
 }
 
-export function registerScriptCommands(context: vscode.ExtensionContext, controller: NvmrcController): ScriptsTreeProvider {
+export function registerScriptCommands(context: vscode.ExtensionContext, controller: NvmrcController): ScriptCatalog {
     const runner = new ScriptRunner();
-    const tree = new ScriptsTreeProvider(controller, runner);
-    const footer = () => void syncFooter(controller, tree, runner);
+    const catalog = new ScriptCatalog(controller, runner);
+    const footer = () => void syncFooter(controller, catalog, runner);
     context.subscriptions.push(
-        runner, tree,
-        tree.onDidChangeTreeData(footer),
-        vscode.window.registerTreeDataProvider('wlyNvmrc.scripts', tree),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.refresh', () => tree.reload()),
+        runner, catalog,
+        catalog.onDidChange(footer),
+        vscode.commands.registerCommand('wlyNvmrc.scripts.refresh', () => catalog.reload()),
         vscode.commands.registerCommand('wlyNvmrc.scripts.run', async (arg?: ScriptNode | ScriptRef) => {
-            const target = await resolveScript(tree, arg);
+            const target = await resolveScript(catalog, arg);
             if (target) {await runScript(controller, runner, target);}
         }),
         vscode.commands.registerCommand('wlyNvmrc.scripts.stop', async (arg: ScriptNode | ScriptRef) => {
-            const target = await resolveScript(tree, arg);
+            const target = await resolveScript(catalog, arg);
             if (target) {await runner.stop(target.project.dir, target.script);}
         }),
         vscode.commands.registerCommand('wlyNvmrc.scripts.restart', async (arg: ScriptNode | ScriptRef) => {
-            const target = await resolveScript(tree, arg);
+            const target = await resolveScript(catalog, arg);
             if (target) {await restartScript(runner, target);}
         }),
         vscode.commands.registerCommand('wlyNvmrc.scripts.open', async (arg: ScriptNode | ScriptRef) => {
-            const target = await resolveScript(tree, arg);
+            const target = await resolveScript(catalog, arg);
             if (target) {await revealScript(target.project, target.script);}
-        }),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.openPackageJson', (node: ProjectNode) => vscode.window.showTextDocument(node.project.packageJson)),
-        vscode.commands.registerCommand('wlyNvmrc.scripts.install', async (node: ProjectNode) => {
-            const task = new vscode.Task(
-                { type: 'wlyNvmrc-install', path: node.project.dir }, node.project.workspaceFolder,
-                `${node.project.label}: install`, 'wly', new vscode.ShellExecution(node.project.packageManager, ['install'], { cwd: node.project.dir })
-            );
-            await vscode.tasks.executeTask(task);
         })
     );
     footer();
-    return tree;
+    return catalog;
 }

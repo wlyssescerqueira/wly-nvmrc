@@ -9,7 +9,7 @@ export type ScriptProject = {
     /** Directory that holds the package.json. */
     dir: string;
     packageJson: vscode.Uri;
-    /** Label shown in the tree, e.g. `frontend\package.json`. */
+    /** Label shown in the status bar menu, e.g. `frontend\package.json`. */
     label: string;
     workspaceFolder: vscode.WorkspaceFolder;
     packageManager: PackageManager;

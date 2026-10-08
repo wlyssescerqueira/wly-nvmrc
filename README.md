@@ -13,16 +13,16 @@ Avoids the "version soup" when switching between projects (plain Node, Angular/A
 
 This works both when opening a project directory by itself and when opening a repository that contains several projects (for example `backend`, `frontend` and `mobile`). A root-level `package.json` is treated as its own project and does not override the versions pinned by child projects.
 
-## Wly Scripts view
+## Scripts
 
-The Explorer gets a **Wly Scripts** view, similar to the built-in NPM Scripts view: one node per `package.json` (with its required Node version) and its scripts underneath. Click a script to jump to it in `package.json`; use the ▶ button to run it as a task.
+The status bar menu lists the `package.json` scripts that start servers or are running, with Run/Restart/Stop actions. **Wlytech - nvmrc: Run Script** in the Command Palette picks any script and runs it as a task.
 
 Before running, the extension:
 
 1. **Checks the Node version** — if the project's `.nvmrc`/`engines` doesn't match the active Node, offers to `nvm use` and run, or run anyway.
 2. **Checks the ports** — detects the ports the script will listen on and, if any is busy, shows which process holds it and asks to **Kill and start** / **Start anyway**.
 
-Ports are detected from explicit flags (`--port 3000`, `-p 3000`, `PORT=3000`), framework config/defaults (Next, Vite, Angular, CRA, Nuxt, Astro, Expo, Storybook, webpack-dev-server…), the project's `.env` `PORT` and `process.env.PORT || 3011` fallbacks in the server entry file. Delegating scripts are followed (`npm run dev --prefix backend`, `cd x && npm run y`, `node scripts/dev.cjs` that spawns `npm run dev` in sibling packages), so a root `dev` checks every port it starts. Running scripts show a spinner with Restart/Stop buttons.
+Ports are detected from explicit flags (`--port 3000`, `-p 3000`, `PORT=3000`), framework config/defaults (Next, Vite, Angular, CRA, Nuxt, Astro, Expo, Storybook, webpack-dev-server…), the project's `.env` `PORT` and `process.env.PORT || 3011` fallbacks in the server entry file. Delegating scripts are followed (`npm run dev --prefix backend`, `cd x && npm run y`, `node scripts/dev.cjs` that spawns `npm run dev` in sibling packages), so a root `dev` checks every port it starts. Running scripts show Restart/Stop actions.
 
 ## Requirements
 
