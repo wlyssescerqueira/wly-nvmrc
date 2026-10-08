@@ -89,11 +89,6 @@
     "configuration": {
       "title": "Wlytech - nvmrc",
       "properties": {
-        "wlyNvmrc.notifyOnMismatch": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show a warning notification when the active Node version does not match .nvmrc."
-        },
         "wlyNvmrc.pollIntervalSeconds": {
           "type": "number",
           "default": 15,

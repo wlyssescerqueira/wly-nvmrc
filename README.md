@@ -30,7 +30,6 @@ Ports are detected from explicit flags (`--port 3000`, `-p 3000`, `PORT=3000`), 
 
 ## Settings
 
-- `wlyNvmrc.notifyOnMismatch` (default `true`): shows a toast when a version mismatch is detected.
 - `wlyNvmrc.pollIntervalSeconds` (default `15`): interval to re-check the active Node version while the window is focused (`0` disables polling; the focus and `.nvmrc`-change checks stay active).
 
 - `wlyNvmrc.scripts.checkPorts` (default `true`): check busy ports before running a script.
