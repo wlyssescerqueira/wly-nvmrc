@@ -18,7 +18,12 @@ function link(label: string, command: string, args?: unknown, title?: string): s
     return `[${label}](command:${command}${query}${hint})`;
 }
 
-function escape(text: string): string {return text.replace(/[\\`*_[\]<>]/g, '\\$&');}
+function escape(text: string): string {return text.replace(/[\\`*_[\]<>|]/g, '\\$&');}
+
+/** Hovers only accept hex or `var(--vscode-…)` colors in a span's style. */
+function colored(text: string, themeColor: string): string {
+    return `<span style="color:var(--vscode-${themeColor});">${text}</span>`;
+}
 
 const STATE_ICONS: Record<FooterState, string> = {
     idle: '$(circle-outline)',
@@ -50,7 +55,7 @@ function statusSection(status: NvmrcStatus): string {
     const rows = status.projects.map((project) => {
         const required = !project.required ? 'missing' : project.source === 'engines' ? `v${project.required} (engines)` : `v${project.required}`;
         const state = project.matches === true ? '$(check) match' : project.matches === false ? '$(error) mismatch' : '$(warning) —';
-        return `| ${project.name} | ${required} | ${state} |`;
+        return `| ${escape(project.name)} | ${required} | ${state} |`;
     });
     lines.push(['| Project | Required | Status |', '|---|---|---|', ...rows].join('\n'));
     return lines.join('\n\n');
@@ -71,7 +76,7 @@ function scriptEntry(item: FooterScript): string {
     switch (item.state) {
         case 'task':
         case 'debug':
-            return `${head} ${link('$(debug-restart)', 'wlyNvmrc.scripts.restart', [ref], 'Restart')} ${link('$(debug-stop)', 'wlyNvmrc.scripts.stop', [ref], 'Stop')}`;
+            return `${head} ${link('$(debug-restart)', 'wlyNvmrc.scripts.restart', [ref], 'Restart')} ${link(colored('$(debug-stop)', 'errorForeground'), 'wlyNvmrc.scripts.stop', [ref], 'Stop')}`;
         case 'external':
             return `${head} *${escape(listenerText(item.listeners))}* ${kill(item.listeners)}`;
         case 'conflict': {
@@ -128,6 +133,8 @@ function buildTooltip(status: NvmrcStatus, scripts: FooterProject[]): vscode.Mar
         true
     );
     tooltip.isTrusted = true;
+    // Only for <span style="color:…"> around icons; text from files is escaped.
+    tooltip.supportHtml = true;
     return tooltip;
 }
 
