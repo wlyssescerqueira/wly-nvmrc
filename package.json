@@ -68,6 +68,18 @@
         "icon": "$(play)"
       },
       {
+        "command": "wlyNvmrc.scripts.debug",
+        "title": "Debug Script",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(debug)"
+      },
+      {
+        "command": "wlyNvmrc.scripts.kill",
+        "title": "Kill Process Using Script Ports",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(close)"
+      },
+      {
         "command": "wlyNvmrc.scripts.stop",
         "title": "Stop Script",
         "category": "Wlytech - nvmrc",
@@ -119,6 +131,10 @@
         },
         {
           "command": "wlyNvmrc.scripts.open",
+          "when": "false"
+        },
+        {
+          "command": "wlyNvmrc.scripts.kill",
           "when": "false"
         }
       ]

@@ -7,7 +7,11 @@ export type PortListener = {
     port: number;
     pid: number;
     processName: string;
+    /** Command lines of the listener and its ancestors (closest first), used to tell which project owns it. */
+    commandLines: string[];
 };
+
+type ProcessInfo = { name: string; parent: number; commandLine: string };
 
 const PORT = '(\\d{2,5})';
 
@@ -157,6 +161,74 @@ async function processName(pid: number): Promise<string> {
     }
 }
 
+const PROCESS_CACHE_MS = 5 * 60_000;
+const processCache = new Map<number, { info: ProcessInfo | undefined; at: number }>();
+
+/**
+ * Name, parent PID and command line of each process. On Windows the ancestors are
+ * walked inside the same PowerShell call, since starting PowerShell is the slow part.
+ */
+async function queryProcesses(pids: number[], depth = 4): Promise<Map<number, ProcessInfo>> {
+    const result = new Map<number, ProcessInfo>();
+    if (pids.length === 0) {return result;}
+    try {
+        if (process.platform === 'win32') {
+            const script = [
+                '$all = @{}',
+                'Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name,CommandLine | ForEach-Object { $all[[int]$_.ProcessId] = $_ }',
+                `$queue = @(${pids.join(',')})`,
+                `for ($d = 0; $d -le ${depth} -and $queue.Count -gt 0; $d++) {`,
+                '  $next = @()',
+                '  foreach ($id in $queue) { $p = $all[[int]$id]; if ($p) { "$($p.ProcessId)`t$($p.ParentProcessId)`t$($p.Name)`t$($p.CommandLine)"; if ($p.ParentProcessId -gt 4) { $next += [int]$p.ParentProcessId } } }',
+                '  $queue = @($next | Select-Object -Unique)',
+                '}'
+            ].join('\n');
+            const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
+            for (const line of stdout.split(/\r?\n/)) {
+                const [pid, parent, name, ...rest] = line.split('\t');
+                if (!pid || !name) {continue;}
+                result.set(Number(pid), { name, parent: Number(parent), commandLine: rest.join('\t') });
+            }
+        } else {
+            const { stdout } = await run('ps', ['-o', 'pid=,ppid=,args=', '-p', pids.join(',')]);
+            for (const line of stdout.split(/\r?\n/)) {
+                const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+                if (!match) {continue;}
+                result.set(Number(match[1]), { name: path.basename(match[3].split(/\s+/)[0]), parent: Number(match[2]), commandLine: match[3] });
+            }
+        }
+    } catch { /* leave unknown */ }
+    return result;
+}
+
+async function processInfo(pids: number[]): Promise<Map<number, ProcessInfo | undefined>> {
+    const now = Date.now();
+    const missing = [...new Set(pids)].filter((pid) => {
+        const cached = processCache.get(pid);
+        return !cached || now - cached.at > PROCESS_CACHE_MS;
+    });
+    const fetched = await queryProcesses(missing);
+    missing.forEach((pid) => processCache.set(pid, { info: fetched.get(pid), at: now }));
+    fetched.forEach((info, pid) => processCache.set(pid, { info, at: now }));
+    return new Map(pids.map((pid) => [pid, processCache.get(pid)?.info]));
+}
+
+/** Name of the process plus the command lines of it and up to `depth` ancestors. */
+async function ancestry(pid: number, depth = 4): Promise<{ name: string | undefined; commandLines: string[] }> {
+    const commandLines: string[] = [];
+    let name: string | undefined;
+    let current = pid;
+    for (let level = 0; level <= depth && current > 4; level++) {
+        const info = (await processInfo([current])).get(current);
+        if (!info) {break;}
+        if (level === 0) {name = info.name;}
+        if (info.commandLine) {commandLines.push(info.commandLine);}
+        if (info.parent === current) {break;}
+        current = info.parent;
+    }
+    return { name, commandLines };
+}
+
 async function listeningPids(ports: number[]): Promise<Map<number, Set<number>>> {
     const result = new Map<number, Set<number>>();
     const add = (port: number, pid: number) => {
@@ -186,8 +258,18 @@ async function listeningPids(ports: number[]): Promise<Map<number, Set<number>>>
 export async function findPortListeners(ports: number[]): Promise<PortListener[]> {
     if (ports.length === 0) {return [];}
     const listeners: PortListener[] = [];
-    for (const [port, pids] of await listeningPids(ports)) {
-        for (const pid of pids) {listeners.push({ port, pid, processName: await processName(pid) });}
+    const byPort = await listeningPids(ports);
+    // Warm the cache one ancestry level at a time so each level costs a single query.
+    let level = [...new Set([...byPort.values()].flatMap((pids) => [...pids]))];
+    for (let depth = 0; depth <= 4 && level.length > 0; depth++) {
+        const infos = await processInfo(level);
+        level = [...new Set([...infos.values()].map((info) => info?.parent ?? 0).filter((pid) => pid > 4))];
+    }
+    for (const [port, pids] of byPort) {
+        for (const pid of pids) {
+            const { name, commandLines } = await ancestry(pid);
+            listeners.push({ port, pid, processName: name ?? await processName(pid), commandLines });
+        }
     }
     return listeners.sort((a, b) => a.port - b.port);
 }

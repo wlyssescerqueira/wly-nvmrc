@@ -15,7 +15,16 @@ This works both when opening a project directory by itself and when opening a re
 
 ## Scripts
 
-The status bar menu lists the `package.json` scripts that start servers or are running, with Run/Restart/Stop actions. **Wlytech - nvmrc: Run Script** in the Command Palette picks any script and runs it as a task.
+The status bar menu lists the `package.json` scripts that start servers or are running, with Debug/Run (and Restart/Stop while running) actions. Debug runs the script in a JavaScript Debug Terminal (`node-terminal`). An icon in front of each script shows its state, re-checked on the `pollIntervalSeconds` interval:
+
+| Icon | State |
+|---|---|
+| `$(circle-outline)` | stopped (ports free) |
+| `$(sync~spin)` / `$(debug-alt)` | running / debugging from this window |
+| `$(pass-filled)` | its ports are held by a process of this workspace started elsewhere (a terminal, another window) — can be killed from the menu |
+| `$(warning)` | a port is held by a process of another project — shows the process and PID, can be killed from the menu |
+
+A process belongs to the workspace when its command line (or one of its parents') contains a workspace folder path. **Wlytech - nvmrc: Run Script** in the Command Palette picks any script and runs it as a task.
 
 Before running, the extension:
 
