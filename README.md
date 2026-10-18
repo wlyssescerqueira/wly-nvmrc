@@ -17,12 +17,12 @@ This works both when opening a project directory by itself and when opening a re
 
 The status bar menu lists the `package.json` scripts that start servers or are running, with Debug/Run (and Restart/Stop while running) actions. Debug runs the script in a JavaScript Debug Terminal (`node-terminal`). An icon in front of each script shows its state, re-checked on the `pollIntervalSeconds` interval:
 
-| Icon | State |
-|---|---|
-| `$(circle-outline)` | stopped (ports free) |
-| `$(sync~spin)` / `$(debug-alt)` | running / debugging from this window |
-| `$(pass-filled)` | its ports are held by a process of this workspace started elsewhere (a terminal, another window) — can be killed from the menu |
-| `$(warning)` | a port is held by a process of another project — shows the process and PID, can be killed from the menu |
+| Icon                            | State                                                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `$(circle-outline)`             | stopped (ports free)                                                                                                           |
+| `$(sync~spin)` / `$(debug-alt)` | running / debugging from this window                                                                                           |
+| `$(pass-filled)`                | its ports are held by a process of this workspace started elsewhere (a terminal, another window) — can be killed from the menu |
+| `$(warning)`                    | a port is held by a process of another project — shows the process and PID, can be killed from the menu                        |
 
 A process belongs to the workspace when its command line (or one of its parents') contains a workspace folder path. **Wlytech - nvmrc: Run Script** in the Command Palette picks any script and runs it as a task.
 
@@ -34,6 +34,12 @@ Before running, the extension:
 Ports are detected from explicit flags (`--port 3000`, `-p 3000`, `PORT=3000`), framework config/defaults (Next, Vite, Angular, CRA, Nuxt, Astro, Expo, Storybook, webpack-dev-server…), the project's `.env` `PORT` and `process.env.PORT || 3011` fallbacks in the server entry file. Delegating scripts are followed (`npm run dev --prefix backend`, `cd x && npm run y`, `node scripts/dev.cjs` that spawns `npm run dev` in sibling packages), so a root `dev` checks every port it starts. Running scripts show Restart/Stop actions.
 
 ## Requirements
+
+### Mobile shortcuts
+
+Keep emulator launch commands in the mobile app's `package.json` scripts (for example `emulator` or `emulator:start`), using the SDK/AVD configuration appropriate to that project. The extension shows scripts named `emulator`, `avd`, `android` or `ios` (including colon, dash and underscore variants) in the status bar menu even without a detected port. It also recognizes direct `emulator -avd ...` commands. Other scripts remain available through **Run another script…**.
+
+Android, Expo and React Native projects also show **Open APK folder**. It opens the directory containing a local APK in the system file manager; when multiple directories contain APKs, it offers a picker. Without APK files, it opens `android/app/build/outputs/apk` if that directory exists, or explains that a build/download is needed. It does not build or download APKs.
 
 - [nvm-windows](https://github.com/coreybutler/nvm-windows) installed and on PATH to use the "nvm use" / "nvm install" actions. Without nvm, the extension still detects and flags mismatches, it just can't switch the version automatically.
 

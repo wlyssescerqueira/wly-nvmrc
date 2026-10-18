@@ -30,6 +30,12 @@
   "contributes": {
     "commands": [
       {
+        "command": "wlyNvmrc.scripts.openApkFolder",
+        "title": "Open APK Folder",
+        "category": "Wlytech - nvmrc",
+        "icon": "$(folder-opened)"
+      },
+      {
         "command": "wlyNvmrc.refresh",
         "title": "Wlytech - nvmrc: Refresh Status",
         "icon": "$(refresh)"
