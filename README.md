@@ -37,7 +37,13 @@ Ports are detected from explicit flags (`--port 3000`, `-p 3000`, `PORT=3000`), 
 
 ### Mobile shortcuts
 
-Keep emulator launch commands in the mobile app's `package.json` scripts (for example `emulator` or `emulator:start`), using the SDK/AVD configuration appropriate to that project. The extension shows scripts named `emulator`, `avd`, `android` or `ios` (including colon, dash and underscore variants) in the status bar menu even without a detected port. It also recognizes direct `emulator -avd ...` commands. Other scripts remain available through **Run another script…**.
+Mobile projects show **Start Android emulator…**, with a picker when multiple virtual devices exist. No AVD name needs to be fixed in `package.json`. The SDK is detected from the extension's `wlyNvmrc.android.sdkPath` setting, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or the default Android Studio SDK directory. Detected SDK paths are passed to mobile tasks/debug sessions as environment variables without changing the machine environment.
+
+When the SDK/emulator is missing, **Configure Android SDK / emulator…** offers a folder selector and setup instructions, including a suggested SDK path and an optional command for setting `ANDROID_HOME` in external terminals. No environment changes are executed by the help screen. Create virtual devices through Android Studio's Device Manager.
+
+Keep normal Expo commands in the mobile package: `start` starts Metro, `android` can use `npm run start -- --android` to open the installed app, and `android:build` can use `expo run:android` for a native build. Native modules may require a development build. Scripts named `emulator`, `avd`, `android` or `ios` remain visible even without a detected port. Other scripts remain available through **Run another script…**.
+
+Simple root shortcuts such as `npm run dev --prefix backend` are hidden from the hover when the target package is already listed. Running shortcuts and commands with setup steps or extra arguments remain visible. Package changes automatically refresh the catalog.
 
 Android, Expo and React Native projects also show **Open APK folder**. It opens the directory containing a local APK in the system file manager; when multiple directories contain APKs, it offers a picker. Without APK files, it opens `android/app/build/outputs/apk` if that directory exists, or explains that a build/download is needed. It does not build or download APKs.
 

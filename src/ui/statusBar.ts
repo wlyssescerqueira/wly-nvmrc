@@ -26,6 +26,7 @@ export type FooterProject = {
   label: string;
   scripts: FooterScript[];
   apkDir?: string;
+  androidReady?: boolean;
 };
 
 function link(
@@ -160,6 +161,16 @@ function scriptsSection(projects: FooterProject[]): string {
     }
     project.scripts.forEach((item) => entries.push(scriptEntry(item)));
     if (project.apkDir) {
+      entries.push(
+        link(
+          project.androidReady
+            ? "$(device-mobile) Start Android emulator…"
+            : "$(warning) Configure Android SDK / emulator…",
+          project.androidReady
+            ? "wlyNvmrc.android.startEmulator"
+            : "wlyNvmrc.android.configure",
+        ),
+      );
       entries.push(
         link(
           "$(folder-opened) Open APK folder",

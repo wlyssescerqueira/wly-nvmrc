@@ -3,6 +3,12 @@ import { NvmrcController } from "../controller";
 import { ScriptCatalog, type ScriptNode } from "../services/scriptCatalog";
 import { ScriptRunner, type RunMode } from "../services/scriptRunner";
 import { revealScript } from "../services/scriptsService";
+import { isScriptShortcut } from "../services/scriptVisibility";
+import {
+  androidReady,
+  configureAndroid,
+  startAndroidEmulator,
+} from "../services/androidService";
 import {
   detectScriptPorts,
   findPortListeners,
@@ -312,7 +318,8 @@ async function syncFooter(
   catalog: ScriptCatalog,
   runner: ScriptRunner,
 ): Promise<void> {
-  const scripts = (await catalog.getProjects())
+  const catalogProjects = await catalog.getProjects();
+  const scripts = catalogProjects
     .map((project) => ({
       label: project.label,
       dir: project.dir,
@@ -328,8 +335,9 @@ async function syncFooter(
         .filter(
           (script) =>
             script.mode ||
-            script.ports.length > 0 ||
-            isMobileLaunchScript(script.script, script.command),
+            (!isScriptShortcut(project, script.command, catalogProjects) &&
+              (script.ports.length > 0 ||
+                isMobileLaunchScript(script.script, script.command))),
         ),
     }))
     .filter((project) => project.scripts.length > 0 || project.android);
@@ -353,6 +361,7 @@ async function syncFooter(
   const projects: FooterProject[] = scripts.map((project) => ({
     label: project.label,
     apkDir: project.android ? project.dir : undefined,
+    androidReady: project.android ? androidReady() : undefined,
     scripts: project.scripts.map(({ mode, ...script }) => {
       const held = listeners.filter((listener) =>
         script.ports.includes(listener.port),
@@ -420,6 +429,14 @@ export function registerScriptCommands(
     runner,
     catalog,
     vscode.commands.registerCommand(
+      "wlyNvmrc.android.startEmulator",
+      startAndroidEmulator,
+    ),
+    vscode.commands.registerCommand(
+      "wlyNvmrc.android.configure",
+      configureAndroid,
+    ),
+    vscode.commands.registerCommand(
       "wlyNvmrc.scripts.openApkFolder",
       async (dir?: string) => {
         const projects = (await catalog.getProjects()).filter((project) =>
@@ -444,6 +461,11 @@ export function registerScriptCommands(
       },
     ),
     catalog.onDidChange(footer),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("wlyNvmrc.android")) {
+        footer();
+      }
+    }),
     vscode.commands.registerCommand("wlyNvmrc.scripts.refresh", () =>
       catalog.reload(),
     ),
