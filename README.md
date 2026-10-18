@@ -26,6 +26,8 @@ The status bar menu lists the `package.json` scripts that start servers or are r
 
 A process belongs to the workspace when its command line (or one of its parents') contains a workspace folder path. **Wlytech - nvmrc: Run Script** in the Command Palette picks any script and runs it as a task.
 
+A shared port does not mean every script using it is running. External processes are matched to a unique script using their command line and ancestors (for example `npm run dev`, `tsx watch src/index.ts`, or `node dist/index.js`), with project-path evidence. Other scripts show **port used by dev** instead of a running checkmark. Ambiguous matches show **port occupied — script not identified**. Tasks/debug sessions started by this window remain tracked directly.
+
 Before running, the extension:
 
 1. **Checks the Node version** — if the project's `.nvmrc`/`engines` doesn't match the active Node, offers to `nvm use` and run, or run anyway.

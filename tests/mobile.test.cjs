@@ -23,6 +23,86 @@ function load(entry, mocks = {}) {
 }
 
 const { isScriptShortcut } = load("src/services/scriptVisibility.ts");
+const { identifyProcessScript } = load("src/services/processScript.ts");
+
+const backendDir = path.resolve("workspace/backend");
+const backendScripts = [
+  { dir: backendDir, script: "dev", command: "tsx watch src/index.ts" },
+  { dir: backendDir, script: "start", command: "node dist/index.js" },
+];
+
+test("shared backend port: npm ancestor identifies dev, not start", () => {
+  const lines = [
+    `node --require "${backendDir}/node_modules/tsx/dist/preflight.cjs" src/index.ts`,
+    'node "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js" run dev',
+  ];
+  assert.equal(identifyProcessScript(lines, backendScripts)?.script, "dev");
+});
+
+test("direct production entry identifies start using an absolute path", () => {
+  assert.equal(
+    identifyProcessScript(
+      [`node "${backendDir}/dist/index.js"`],
+      backendScripts,
+    )?.script,
+    "start",
+  );
+});
+
+test("tsx watch shell ancestor identifies dev without npm", () => {
+  assert.equal(
+    identifyProcessScript(
+      [
+        `node "${backendDir}/node_modules/tsx/dist/cli.mjs" watch src/index.ts`,
+        "cmd.exe /c tsx watch src/index.ts",
+      ],
+      backendScripts,
+    )?.script,
+    "dev",
+  );
+});
+
+test("same port without command evidence remains unknown", () => {
+  assert.equal(
+    identifyProcessScript(
+      [`node "${backendDir}/opaque-server.js"`],
+      backendScripts,
+    ),
+    undefined,
+  );
+  assert.equal(
+    identifyProcessScript(
+      ["node C:/other-project/server.js", "npm run dev"],
+      backendScripts,
+    ),
+    undefined,
+  );
+});
+
+test("identical script commands are ambiguous without a named npm invocation", () => {
+  const candidates = [
+    ...backendScripts,
+    { ...backendScripts[1], script: "serve" },
+  ];
+  assert.equal(
+    identifyProcessScript([`node "${backendDir}/dist/index.js"`], candidates),
+    undefined,
+  );
+});
+
+test("Next dev/start are distinguished by arguments and project directory", () => {
+  const candidates = [
+    { dir: backendDir, script: "dev", command: "next dev" },
+    { dir: backendDir, script: "start", command: "next start" },
+  ];
+  assert.equal(
+    identifyProcessScript(
+      [`node "${backendDir}/node_modules/next/dist/bin/next" start`],
+      candidates,
+    )?.script,
+    "start",
+  );
+});
 const root = { dir: path.resolve("workspace"), scripts: {} };
 const child = {
   dir: path.resolve("workspace/backend"),

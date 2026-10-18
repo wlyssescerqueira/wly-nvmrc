@@ -4,6 +4,7 @@ import { ScriptCatalog, type ScriptNode } from "../services/scriptCatalog";
 import { ScriptRunner, type RunMode } from "../services/scriptRunner";
 import { revealScript } from "../services/scriptsService";
 import { isScriptShortcut } from "../services/scriptVisibility";
+import { identifyProcessScript } from "../services/processScript";
 import {
   androidReady,
   configureAndroid,
@@ -356,6 +357,12 @@ async function syncFooter(
     pid: item.pid,
     processName: item.processName,
     ours: belongsToWorkspace(item.commandLines),
+    owner: identifyProcessScript(
+      item.commandLines,
+      scripts.flatMap((project) =>
+        project.scripts.filter((script) => script.ports.includes(item.port)),
+      ),
+    ),
   }));
 
   const projects: FooterProject[] = scripts.map((project) => ({
@@ -370,9 +377,17 @@ async function syncFooter(
         mode ??
         (held.length === 0
           ? "idle"
-          : held.every((listener) => listener.ours)
-            ? "external"
-            : "conflict");
+          : held.some((listener) => !listener.ours)
+            ? "conflict"
+            : held.every(
+                  (listener) =>
+                    listener.owner?.dir === script.dir &&
+                    listener.owner.script === script.script,
+                )
+              ? "external"
+              : held.every((listener) => listener.owner)
+                ? "occupied"
+                : "unknown");
       return { ...script, state, listeners: held };
     }),
   }));

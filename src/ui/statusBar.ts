@@ -7,13 +7,15 @@ export type FooterListener = {
   pid: number;
   processName: string;
   ours: boolean;
+  owner?: { dir: string; script: string };
 };
 /**
  * - `task` / `debug`: started from this window.
  * - `external`: its ports are held by processes of this workspace started elsewhere (a terminal, another window).
  * - `conflict`: a port is held by a process of another project.
  */
-export type FooterState = "idle" | "task" | "debug" | "external" | "conflict";
+export type FooterState =
+  "idle" | "task" | "debug" | "external" | "conflict" | "occupied" | "unknown";
 export type FooterScript = {
   dir: string;
   script: string;
@@ -52,10 +54,12 @@ function colored(text: string, themeColor: string): string {
 
 const STATE_ICONS: Record<FooterState, string> = {
   idle: "$(circle-outline)",
-  task: "$(sync~spin)",
-  debug: "$(debug-alt)",
-  external: "$(pass-filled)",
+  task: colored("$(sync~spin)", "debugIcon-startForeground"),
+  debug: colored("$(debug-alt)", "debugIcon-startForeground"),
+  external: colored("$(pass-filled)", "debugIcon-startForeground"),
   conflict: "$(warning)",
+  occupied: "$(circle-slash)",
+  unknown: "$(question)",
 };
 
 const LEGEND: Record<Exclude<FooterState, "idle">, string> = {
@@ -63,6 +67,8 @@ const LEGEND: Record<Exclude<FooterState, "idle">, string> = {
   debug: "debugging here",
   external: "running outside this window (this project)",
   conflict: "port used by another project",
+  occupied: "port used by another script",
+  unknown: "port occupied — script not identified",
 };
 
 /** Each menu entry is its own paragraph so the hover lays them out as a vertical list. */
@@ -140,6 +146,10 @@ function scriptEntry(item: FooterScript): string {
       return `${head} ${link("$(debug-restart)", "wlyNvmrc.scripts.restart", [ref], "Restart")} ${link(colored("$(debug-stop)", "errorForeground"), "wlyNvmrc.scripts.stop", [ref], "Stop")}`;
     case "external":
       return `${head} *${escape(listenerText(item.listeners))}* ${kill(item.listeners)}`;
+    case "occupied":
+      return `${head} *port used by ${escape([...new Set(item.listeners.map((listener) => listener.owner?.script))].join(", "))}* ${debug} ${run}`;
+    case "unknown":
+      return `${head} *port occupied — script not identified (${escape(listenerText(item.listeners))})* ${debug} ${run}`;
     case "conflict": {
       const others = item.listeners.filter((listener) => !listener.ours);
       return `${head} *${escape(listenerText(others))}* ${debug} ${run} ${kill(item.listeners)}`;
