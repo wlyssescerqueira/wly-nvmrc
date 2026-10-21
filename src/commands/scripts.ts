@@ -217,31 +217,73 @@ async function restartScript(
   }
 }
 
-/** Kills whatever listens on the script's ports (e.g. a server started from a terminal). */
+/** Kills identified script processes, including workers without listening ports. */
 async function killScriptPorts(node: ScriptNode): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    toast("Confie neste workspace antes de encerrar processos.", "warn");
+    return;
+  }
+  const candidate = {
+    dir: node.project.dir,
+    script: node.script,
+    command: node.command,
+    file: node.file,
+  };
+  const key = runtimeKey(candidate.dir, candidate.script);
+  const processes = await listScriptProcesses();
+  const pids = matchScriptProcesses(processes, [candidate]).get(key) ?? [];
   const listeners = await findPortListeners(
     detectScriptPorts(node.project.dir, node.script),
   );
-  if (listeners.length === 0) {
-    toast(`Nothing is listening on the ports of "${node.script}".`);
+  const targets = new Set([...pids, ...listeners.map((item) => item.pid)]);
+  if (targets.size === 0) {
+    toast(`Nenhum processo em execução para "${node.script}".`);
     return;
   }
   const choice = await vscode.window.showWarningMessage(
-    `Kill the process${listeners.length > 1 ? "es" : ""} using the ports of "${node.script}"?`,
+    `Matar processo de "${node.script}"?`,
     {
       modal: true,
-      detail: listeners
-        .map(
+      detail: [
+        ...pids.map((pid) => `PID ${pid}`),
+        ...listeners.map(
           (item) => `Port ${item.port} — ${item.processName} (PID ${item.pid})`,
-        )
-        .join("\n"),
+        ),
+      ].join("\n"),
     },
-    "Kill",
+    "Matar processo",
   );
-  if (choice !== "Kill") {
+  if (choice !== "Matar processo") {
     return;
   }
-  for (const pid of new Set(listeners.map((item) => item.pid))) {
+  const fresh = await listScriptProcesses();
+  const current = new Set(
+    matchScriptProcesses(fresh, [candidate]).get(key) ?? [],
+  );
+  const currentListeners = await findPortListeners(
+    detectScriptPorts(node.project.dir, node.script),
+  );
+  for (const pid of targets) {
+    const sameProcess = processes.find((item) => item.pid === pid);
+    const stillSame = fresh.some(
+      (item) =>
+        item.pid === pid &&
+        sameProcess &&
+        item.commandLine === sameProcess.commandLine &&
+        item.parent === sameProcess.parent,
+    );
+    if (
+      !stillSame ||
+      (!current.has(pid) &&
+        !currentListeners.some(
+          (item) =>
+            item.pid === pid &&
+            listeners.some(
+              (previous) => previous.pid === pid && previous.port === item.port,
+            ),
+        ))
+    )
+      continue;
     try {
       await killProcess(pid);
       log(`[scripts] killed PID ${pid}`);

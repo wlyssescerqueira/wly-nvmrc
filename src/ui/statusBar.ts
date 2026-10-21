@@ -139,7 +139,7 @@ function scriptEntry(item: FooterScript): string {
       "$(close)",
       "wlyNvmrc.scripts.kill",
       [ref],
-      `Kill ${listenerText(listeners)}`,
+      `Matar processo: ${listeners.length ? listenerText(listeners) : `PID ${(item.pids ?? []).join(", ")}`}`,
     );
   const head = `${STATE_ICONS[item.state]} ${name}${ports}`;
   switch (item.state) {
@@ -147,7 +147,7 @@ function scriptEntry(item: FooterScript): string {
     case "debug":
       return `${head} ${link("$(debug-restart)", "wlyNvmrc.scripts.restart", [ref], "Restart")} ${link(colored("$(debug-stop)", "errorForeground"), "wlyNvmrc.scripts.stop", [ref], "Stop")}`;
     case "external":
-      return `${head} *${escape(item.listeners.length ? listenerText(item.listeners) : `PID ${(item.pids ?? []).join(", ")}`)}*${item.listeners.length ? ` ${kill(item.listeners)}` : ""}`;
+      return `${head} *${escape(item.listeners.length ? listenerText(item.listeners) : `PID ${(item.pids ?? []).join(", ")}`)}* ${kill(item.listeners)}`;
     case "occupied":
       return `${head} *port used by ${escape([...new Set(item.listeners.map((listener) => listener.owner?.script))].join(", "))}* ${debug} ${run}`;
     case "unknown":

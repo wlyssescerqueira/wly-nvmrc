@@ -557,6 +557,7 @@ test("status menu puts all services before support and highlights running worker
   assert.match(text, /PID 7890/);
   assert.match(text, /\$\(sync~spin\)/);
   assert.match(item.text, /\$\(play\) 2/);
-  assert.equal(text.includes("wlyNvmrc.scripts.kill"), false);
+  assert.match(text, /\*\*z-worker\*\*[^\n]*command:wlyNvmrc.scripts.kill/);
+  assert.match(text, /Matar processo: PID 7890/);
   bar.dispose();
 });
