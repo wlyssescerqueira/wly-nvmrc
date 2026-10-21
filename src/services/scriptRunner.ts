@@ -55,6 +55,12 @@ export class ScriptRunner implements vscode.Disposable {
         this.trackSession(session, false),
       ),
     );
+    for (const execution of vscode.tasks.taskExecutions) {
+      this.trackTask(execution, true);
+    }
+    if (vscode.debug.activeDebugSession) {
+      this.trackSession(vscode.debug.activeDebugSession, true);
+    }
   }
 
   private set(
@@ -115,6 +121,7 @@ export class ScriptRunner implements vscode.Disposable {
     project: ScriptProject,
     script: string,
     mode: RunMode = "task",
+    fileArgs?: string[],
   ): Promise<void> {
     const owner = path.basename(project.dir);
     const sdk = isAndroidProject(project.dir) ? androidSdk() : undefined;
@@ -143,10 +150,15 @@ export class ScriptRunner implements vscode.Disposable {
       project.workspaceFolder,
       `${owner}: ${script}`,
       "wly",
-      new vscode.ShellExecution(project.packageManager, ["run", script], {
-        cwd: project.dir,
-        env,
-      }),
+      fileArgs
+        ? new vscode.ProcessExecution("node", fileArgs, {
+            cwd: project.dir,
+            env,
+          })
+        : new vscode.ShellExecution(project.packageManager, ["run", script], {
+            cwd: project.dir,
+            env,
+          }),
     );
     task.presentationOptions = {
       reveal: vscode.TaskRevealKind.Always,

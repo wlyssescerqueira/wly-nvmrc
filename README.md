@@ -15,7 +15,9 @@ This works both when opening a project directory by itself and when opening a re
 
 ## Scripts
 
-The status bar menu lists the `package.json` scripts that start servers or are running, with Debug/Run (and Restart/Stop while running) actions. Debug runs the script in a JavaScript Debug Terminal (`node-terminal`). An icon in front of each script shows its state, re-checked on the `pollIntervalSeconds` interval:
+Scripts are available exclusively in the status bar menu, grouped by project. It lists every npm command and JavaScript file discovered inside `scripts/`, with Run/Debug actions and Stop/Restart for tasks started in this window. Click a script name to open its definition. Test files run with `node --test`. Only trusted workspaces can execute scripts.
+
+Port status refreshes on focus and at the configured polling interval.
 
 | Icon                            | State                                                                                                                          |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |

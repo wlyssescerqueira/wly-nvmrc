@@ -283,3 +283,227 @@ test("shortcuts with npm lifecycle hooks stay visible", () => {
     false,
   );
 });
+
+const fs = require("node:fs/promises");
+const { discoverScriptFiles } = load("src/services/scriptFiles.ts");
+
+test("script files: nested files, spaces and tests keep separate Node arguments", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "wly-scripts-"));
+  try {
+    await fs.mkdir(path.join(dir, "scripts", "nested folder"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(dir, "scripts", "node_modules"));
+    await Promise.all([
+      fs.writeFile(
+        path.join(dir, "scripts", "nested folder", "worker name.cjs"),
+        "",
+      ),
+      fs.writeFile(path.join(dir, "scripts", "selling.test.cjs"), ""),
+      fs.writeFile(path.join(dir, "scripts", "README.md"), ""),
+      fs.writeFile(path.join(dir, "scripts", "node_modules", "ignored.js"), ""),
+    ]);
+    const files = await discoverScriptFiles(dir);
+    assert.equal(files.length, 2);
+    assert.deepEqual(
+      files.find((file) => file.relativePath.endsWith("selling.test.cjs")).args,
+      ["--test", path.join("scripts", "selling.test.cjs")],
+    );
+    assert.deepEqual(
+      files.find((file) => file.relativePath.endsWith("worker name.cjs")).args,
+      [path.join("scripts", "nested folder", "worker name.cjs")],
+    );
+    assert.deepEqual(await discoverScriptFiles(path.join(dir, "missing")), []);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+const { matchScriptProcesses, runtimeKey } = load(
+  "src/services/scriptProcesses.ts",
+);
+const workerFile = path.join("scripts", "worker name.cjs");
+const runtimeCandidates = [
+  {
+    dir: backendDir,
+    script: "worker",
+    command: 'node "scripts/worker name.cjs"',
+  },
+  {
+    dir: backendDir,
+    script: `file:${workerFile}`,
+    command: 'node "scripts/worker name.cjs"',
+    file: workerFile,
+  },
+];
+
+test("external workers without ports mark both npm command and file; exit clears state", () => {
+  const worker = {
+    pid: 1234,
+    parent: 0,
+    name: "node.exe",
+    commandLine: `node "${path.join(backendDir, workerFile)}"`,
+  };
+  const found = matchScriptProcesses([worker], runtimeCandidates);
+  assert.deepEqual(found.get(runtimeKey(backendDir, "worker")), [1234]);
+  assert.deepEqual(
+    found.get(runtimeKey(backendDir, `file:${workerFile}`)),
+    [1234],
+  );
+  assert.equal(matchScriptProcesses([], runtimeCandidates).size, 0);
+});
+
+test("same worker filename in another project does not mark this project", () => {
+  const worker = {
+    pid: 2345,
+    parent: 0,
+    name: "node",
+    commandLine: `node "${path.resolve("other/backend", workerFile)}"`,
+  };
+  assert.equal(matchScriptProcesses([worker], runtimeCandidates).size, 0);
+  assert.equal(
+    matchScriptProcesses(
+      [{ ...worker, commandLine: `node "${workerFile}"` }],
+      runtimeCandidates,
+    ).size,
+    0,
+  );
+});
+
+test("preload and eval are not mistaken for the running script", () => {
+  const absolute = path.join(backendDir, workerFile);
+  const worker = {
+    pid: 3456,
+    parent: 0,
+    name: "node",
+    commandLine: `node -r dotenv/config "${absolute}"`,
+  };
+  const key = runtimeKey(backendDir, `file:${workerFile}`);
+  assert.deepEqual(
+    matchScriptProcesses([worker], runtimeCandidates).get(key),
+    [3456],
+  );
+  assert.equal(
+    matchScriptProcesses(
+      [{ ...worker, commandLine: `node -r "${absolute}" different.js` }],
+      runtimeCandidates,
+    ).has(key),
+    false,
+  );
+  assert.equal(
+    matchScriptProcesses(
+      [{ ...worker, commandLine: `node -e 'console.log("${absolute}")'` }],
+      runtimeCandidates,
+    ).has(key),
+    false,
+  );
+});
+
+test("relative worker paths need project evidence from cwd or ancestry", () => {
+  const worker = {
+    pid: 4567,
+    parent: 0,
+    name: "node",
+    cwd: backendDir,
+    commandLine: `node "${workerFile}"`,
+  };
+  assert.deepEqual(
+    matchScriptProcesses([worker], runtimeCandidates).get(
+      runtimeKey(backendDir, `file:${workerFile}`),
+    ),
+    [4567],
+  );
+});
+
+test("tree shows external PID, stopped state and debugging state from runtime updates", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "wly-runtime-"));
+  let alive = true;
+  let mode;
+  const events = [];
+  class EventEmitter {
+    event = () => ({ dispose() {} });
+    fire(value) {
+      events.push(value);
+    }
+    dispose() {}
+  }
+  class ThemeIcon {
+    constructor(id, color) {
+      this.id = id;
+      this.color = color;
+    }
+  }
+  class TreeItem {
+    constructor(label) {
+      this.label = label;
+    }
+  }
+  const { ScriptsTree } = load("src/ui/scriptsTree.ts", {
+    vscode: {
+      EventEmitter,
+      ThemeIcon,
+      TreeItem,
+      ThemeColor: class {},
+      TreeItemCollapsibleState: { Expanded: 2 },
+    },
+    child_process: {
+      execFile(command, args, options, callback) {
+        const file = path.join(dir, "scripts", "worker.cjs");
+        callback(
+          null,
+          process.platform === "win32"
+            ? JSON.stringify(
+                alive
+                  ? [
+                      {
+                        ProcessId: 7890,
+                        ParentProcessId: 0,
+                        Name: "node.exe",
+                        CommandLine: `node "${file}"`,
+                        Cwd: dir,
+                      },
+                    ]
+                  : [],
+              )
+            : alive
+              ? `7890 0 node node "${file}"`
+              : "",
+          "",
+        );
+      },
+    },
+  });
+  try {
+    await fs.mkdir(path.join(dir, "scripts"));
+    await fs.writeFile(path.join(dir, "scripts", "worker.cjs"), "");
+    const project = { dir, scripts: {}, label: "backend/package.json" };
+    const catalog = {
+      getProjects: async () => [project],
+      onDidChange: () => ({ dispose() {} }),
+    };
+    const tree = new ScriptsTree(catalog, { runningMode: () => mode });
+    const [node] = await tree.getChildren({
+      kind: "group",
+      project,
+      source: "files",
+    });
+    await tree.refreshRuntime();
+    let item = tree.getTreeItem(node);
+    assert.equal(item.contextValue, "wlyScriptExternal");
+    assert.equal(item.iconPath.id, "pass-filled");
+    assert.match(item.description, /PID 7890/);
+    alive = false;
+    await tree.refreshRuntime();
+    item = tree.getTreeItem(node);
+    assert.equal(item.description, "Parado");
+    assert.equal(item.contextValue, "wlyScriptFile");
+    mode = "debug";
+    item = tree.getTreeItem(node);
+    assert.equal(item.iconPath.id, "debug-alt");
+    assert.equal(item.contextValue, "wlyScriptRunning");
+    assert.ok(events.length >= 2);
+    tree.dispose();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

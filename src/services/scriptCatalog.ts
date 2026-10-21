@@ -8,6 +8,8 @@ export type ScriptNode = {
   project: ScriptProject;
   script: string;
   command: string;
+  file?: string;
+  args?: string[];
 };
 
 /** Cached list of package.json scripts in the workspace; fires when scripts or their run state change. */
@@ -28,6 +30,14 @@ export class ScriptCatalog implements vscode.Disposable {
       watcher.onDidChange(() => this.reload()),
       watcher.onDidCreate(() => this.reload()),
       watcher.onDidDelete(() => this.reload()),
+    );
+    const files = vscode.workspace.createFileSystemWatcher("**/scripts/**");
+    this.disposables.push(
+      files,
+      files.onDidCreate(() => this.reload()),
+      files.onDidChange(() => this.reload()),
+      files.onDidDelete(() => this.reload()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.reload()),
     );
   }
 

@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import { NvmrcController } from "../controller";
 import { ScriptCatalog, type ScriptNode } from "../services/scriptCatalog";
 import { ScriptRunner, type RunMode } from "../services/scriptRunner";
 import { revealScript } from "../services/scriptsService";
-import { isScriptShortcut } from "../services/scriptVisibility";
+import { discoverScriptFiles } from "../services/scriptFiles";
 import { identifyProcessScript } from "../services/processScript";
 import {
   androidReady,
@@ -23,11 +24,7 @@ import type {
   FooterProject,
   FooterState,
 } from "../ui/statusBar";
-import {
-  isAndroidProject,
-  isMobileLaunchScript,
-  openApkFolder,
-} from "../services/mobileService";
+import { isAndroidProject, openApkFolder } from "../services/mobileService";
 
 function setting<T>(name: string, fallback: T): T {
   return vscode.workspace
@@ -176,6 +173,10 @@ async function runScript(
   node: ScriptNode,
   mode: RunMode = "task",
 ): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    toast("Confie neste workspace antes de executar scripts.", "warn");
+    return;
+  }
   if (runner.isRunning(node.project.dir, node.script)) {
     const choice = await vscode.window.showWarningMessage(
       `"${node.script}" is already running. Restart it?`,
@@ -193,7 +194,7 @@ async function runScript(
   if (!(await ensurePortsFree(node))) {
     return;
   }
-  await runner.start(node.project, node.script, mode);
+  await runner.start(node.project, node.script, mode, node.args);
 }
 
 /** Restarts in the same mode (task or debug) the script was running in. */
@@ -206,7 +207,9 @@ async function restartScript(
   if (!(await ensurePortsFree(node))) {
     return;
   }
-  await runner.start(node.project, node.script, mode);
+  if (vscode.workspace.isTrusted) {
+    await runner.start(node.project, node.script, mode, node.args);
+  }
 }
 
 /** Kills whatever listens on the script's ports (e.g. a server started from a terminal). */
@@ -307,6 +310,21 @@ async function resolveScript(
   const project = (await catalog.getProjects()).find(
     (item) => item.dir.toLowerCase() === arg.dir.toLowerCase(),
   );
+  if (project && arg.script.startsWith("file:")) {
+    const file = (await discoverScriptFiles(project.dir)).find(
+      (file) => `file:${file.relativePath}` === arg.script,
+    );
+    return file
+      ? {
+          kind: "script",
+          project,
+          script: arg.script,
+          command: `node ${file.args.join(" ")}`,
+          file: file.relativePath,
+          args: file.args,
+        }
+      : undefined;
+  }
   const command = project?.scripts[arg.script];
   return project && command !== undefined
     ? { kind: "script", project, script: arg.script, command }
@@ -320,28 +338,29 @@ async function syncFooter(
   runner: ScriptRunner,
 ): Promise<void> {
   const catalogProjects = await catalog.getProjects();
-  const scripts = catalogProjects
-    .map((project) => ({
+  const scripts = await Promise.all(
+    catalogProjects.map(async (project) => ({
       label: project.label,
       dir: project.dir,
       android: isAndroidProject(project.dir),
-      scripts: Object.entries(project.scripts)
-        .map(([script, command]) => ({
+      scripts: [
+        ...Object.entries(project.scripts).map(([script, command]) => ({
           dir: project.dir,
           script,
           command,
           ports: detectScriptPorts(project.dir, script),
           mode: runner.runningMode(project.dir, script),
-        }))
-        .filter(
-          (script) =>
-            script.mode ||
-            (!isScriptShortcut(project, script.command, catalogProjects) &&
-              (script.ports.length > 0 ||
-                isMobileLaunchScript(script.script, script.command))),
-        ),
-    }))
-    .filter((project) => project.scripts.length > 0 || project.android);
+        })),
+        ...(await discoverScriptFiles(project.dir)).map((file) => ({
+          dir: project.dir,
+          script: `file:${file.relativePath}`,
+          command: `node ${file.args.join(" ")}`,
+          ports: [] as number[],
+          mode: runner.runningMode(project.dir, `file:${file.relativePath}`),
+        })),
+      ],
+    })),
+  );
 
   const allPorts = [
     ...new Set(
@@ -546,7 +565,13 @@ export function registerScriptCommands(
       async (arg: ScriptNode | ScriptRef) => {
         const target = await resolveScript(catalog, arg);
         if (target) {
-          await revealScript(target.project, target.script);
+          if (target.file) {
+            await vscode.window.showTextDocument(
+              vscode.Uri.file(path.join(target.project.dir, target.file)),
+            );
+          } else {
+            await revealScript(target.project, target.script);
+          }
         }
       },
     ),
