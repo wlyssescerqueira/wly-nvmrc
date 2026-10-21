@@ -66,7 +66,7 @@ const STATE_ICONS: Record<FooterState, string> = {
   debug: colored("$(debug-alt)", "debugIcon-startForeground"),
   external: colored("$(run-all)", "debugIcon-startForeground"),
   conflict: "$(warning)",
-  occupied: "$(circle-slash)",
+  occupied: "$(circle-outline)",
   unknown: "$(question)",
 };
 
