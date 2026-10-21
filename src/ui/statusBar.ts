@@ -16,7 +16,13 @@ export type FooterListener = {
  * - `conflict`: a port is held by a process of another project.
  */
 export type FooterState =
-  "idle" | "task" | "debug" | "external" | "conflict" | "occupied" | "unknown";
+  | "idle"
+  | "task"
+  | "debug"
+  | "external"
+  | "conflict"
+  | "occupied"
+  | "unknown";
 export type FooterScript = {
   dir: string;
   script: string;
@@ -149,7 +155,7 @@ function scriptEntry(item: FooterScript): string {
     case "external":
       return `${head} *${escape(item.listeners.length ? listenerText(item.listeners) : `PID ${(item.pids ?? []).join(", ")}`)}* ${kill(item.listeners)}`;
     case "occupied":
-      return `${head} *port used by ${escape([...new Set(item.listeners.map((listener) => listener.owner?.script))].join(", "))}* ${debug} ${run}`;
+      return `${head} ${debug} ${run}`;
     case "unknown":
       return `${head} *port occupied — script not identified (${escape(listenerText(item.listeners))})* ${debug} ${run}`;
     case "conflict": {

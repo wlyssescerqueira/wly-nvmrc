@@ -1,14 +1,14 @@
-import { execFile } from 'child_process';
+import { execFile } from "child_process";
 
 export type ExecResult = {
-    stdout: string;
-    stderr: string;
+  stdout: string;
+  stderr: string;
 };
 
 export type ExecFailure = Error & {
-    code?: string | number | null;
-    stdout?: string;
-    stderr?: string;
+  code?: string | number | null;
+  stdout?: string;
+  stderr?: string;
 };
 
 /**
@@ -16,17 +16,26 @@ export type ExecFailure = Error & {
  * originate from files or user input (e.g. a version string) can never be used
  * for shell injection.
  */
-export function run(command: string, args: string[] = [], timeoutMs = 15000): Promise<ExecResult> {
-    return new Promise((resolve, reject) => {
-        execFile(command, args, { windowsHide: true, timeout: timeoutMs }, (error, stdout, stderr) => {
-            if (error) {
-                const failure: ExecFailure = error;
-                failure.stdout = stdout;
-                failure.stderr = stderr;
-                reject(failure);
-                return;
-            }
-            resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
-        });
-    });
+export function run(
+  command: string,
+  args: string[] = [],
+  timeoutMs = 15000,
+): Promise<ExecResult> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      { windowsHide: true, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          const failure: ExecFailure = error;
+          failure.stdout = stdout;
+          failure.stderr = stderr;
+          reject(failure);
+          return;
+        }
+        resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
+      },
+    );
+  });
 }

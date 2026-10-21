@@ -91,7 +91,7 @@
       },
       {
         "command": "wlyNvmrc.scripts.kill",
-        "title": "Kill Process Using Script Ports",
+        "title": "Kill Script Process",
         "category": "Wlytech - nvmrc",
         "icon": "$(close)"
       },
@@ -182,7 +182,7 @@
     ]
   },
   "scripts": {
-    "test": "node --test tests/mobile.test.cjs",
+    "test": "node --test tests/mobile.test.cjs tests/platform.test.cjs",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.js --production",
     "compile": "node esbuild.js",

@@ -22,7 +22,11 @@ import {
   killProcess,
   waitForPortsFree,
 } from "../services/portService";
-import { isNvmAvailable, useVersion } from "../services/nvmService";
+import {
+  isNvmAvailable,
+  useVersion,
+  nvmUnavailableMessage,
+} from "../services/nvmService";
 import { log, toast } from "../utils/output";
 import type {
   FooterListener,
@@ -76,10 +80,7 @@ async function ensureNodeVersion(
     return false;
   }
   if (!(await isNvmAvailable())) {
-    toast(
-      "nvm was not found on PATH. Install nvm-windows to switch versions automatically.",
-      "error",
-    );
+    toast(nvmUnavailableMessage, "error");
     return false;
   }
   try {
@@ -282,8 +283,9 @@ async function killScriptPorts(node: ScriptNode): Promise<void> {
               (previous) => previous.pid === pid && previous.port === item.port,
             ),
         ))
-    )
+    ) {
       continue;
+    }
     try {
       await killProcess(pid);
       log(`[scripts] killed PID ${pid}`);
@@ -355,7 +357,7 @@ async function resolveScript(
     return arg;
   }
   const project = (await catalog.getProjects()).find(
-    (item) => item.dir.toLowerCase() === arg.dir.toLowerCase(),
+    (item) => runtimeKey(item.dir, "") === runtimeKey(arg.dir, ""),
   );
   if (project && arg.script.startsWith("file:")) {
     const file = (await discoverScriptFiles(project.dir)).find(

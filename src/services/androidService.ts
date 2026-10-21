@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { run } from "../utils/exec";
+import { quotePosix } from "../utils/shell";
 
 export function androidSdk(): string | undefined {
   const candidates = [
@@ -100,7 +101,7 @@ export async function configureAndroid(): Promise<void> {
     const env =
       process.platform === "win32"
         ? `[Environment]::SetEnvironmentVariable('ANDROID_HOME', '${suggestion.replace(/'/g, "''")}', 'User')`
-        : `export ANDROID_HOME=${JSON.stringify(suggestion)}`;
+        : `export ANDROID_HOME=${quotePosix(suggestion)}`;
     const doc = await vscode.workspace.openTextDocument({
       language: "markdown",
       content: [

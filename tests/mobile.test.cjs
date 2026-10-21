@@ -346,10 +346,9 @@ test("external workers without ports mark both npm command and file; exit clears
   };
   const found = matchScriptProcesses([worker], runtimeCandidates);
   assert.deepEqual(found.get(runtimeKey(backendDir, "worker")), [1234]);
-  assert.deepEqual(
-    found.get(runtimeKey(backendDir, `file:${workerFile}`)),
-    [1234],
-  );
+  assert.deepEqual(found.get(runtimeKey(backendDir, `file:${workerFile}`)), [
+    1234,
+  ]);
   assert.equal(matchScriptProcesses([], runtimeCandidates).size, 0);
 });
 
@@ -379,10 +378,9 @@ test("preload and eval are not mistaken for the running script", () => {
     commandLine: `node -r dotenv/config "${absolute}"`,
   };
   const key = runtimeKey(backendDir, `file:${workerFile}`);
-  assert.deepEqual(
-    matchScriptProcesses([worker], runtimeCandidates).get(key),
-    [3456],
-  );
+  assert.deepEqual(matchScriptProcesses([worker], runtimeCandidates).get(key), [
+    3456,
+  ]);
   assert.equal(
     matchScriptProcesses(
       [{ ...worker, commandLine: `node -r "${absolute}" different.js` }],
@@ -466,7 +464,9 @@ test("tree shows external PID, stopped state and debugging state from runtime up
                   : [],
               )
             : alive
-              ? `7890 0 node node "${file}"`
+              ? args.includes("pid=,comm=")
+                ? "7890 node"
+                : `7890 0 node "${file}"`
               : "",
           "",
         );

@@ -25,7 +25,8 @@ function key(dir: string, script: string): string {
 
 function marker(session: vscode.DebugSession): ScriptMarker | undefined {
   const value = session.configuration.wlyNvmrcScript as
-    ScriptMarker | undefined;
+    | ScriptMarker
+    | undefined;
   return value &&
     typeof value.script === "string" &&
     typeof value.path === "string"
@@ -125,15 +126,20 @@ export class ScriptRunner implements vscode.Disposable {
   ): Promise<void> {
     const owner = path.basename(project.dir);
     const sdk = isAndroidProject(project.dir) ? androidSdk() : undefined;
-    const env = sdk ? { ANDROID_HOME: sdk, ANDROID_SDK_ROOT: sdk } : undefined;
+    const env = {
+      ...process.env,
+      ...(sdk ? { ANDROID_HOME: sdk, ANDROID_SDK_ROOT: sdk } : {}),
+    };
     if (mode === "debug") {
-      // `node-terminal` (built-in js-debug) runs the command in a debug
-      // terminal and auto-attaches to every Node process it spawns.
+      // Argument arrays let js-debug quote correctly for each platform's terminal.
       await vscode.debug.startDebugging(project.workspaceFolder, {
-        type: "node-terminal",
+        type: "node",
         request: "launch",
         name: `${owner}: ${script}`,
-        command: `${project.packageManager} run ${script}`,
+        runtimeExecutable: fileArgs ? "node" : project.packageManager,
+        runtimeArgs: fileArgs ?? ["run", script],
+        console: "integratedTerminal",
+        autoAttachChildProcesses: true,
         cwd: project.dir,
         env,
         wlyNvmrcScript: { script, path: project.dir } satisfies ScriptMarker,
@@ -155,10 +161,26 @@ export class ScriptRunner implements vscode.Disposable {
             cwd: project.dir,
             env,
           })
-        : new vscode.ShellExecution(project.packageManager, ["run", script], {
-            cwd: project.dir,
-            env,
-          }),
+        : process.platform !== "win32"
+          ? new vscode.ProcessExecution(
+              "/bin/sh",
+              [
+                "-c",
+                'exec "$@"',
+                "wly-script",
+                project.packageManager,
+                "run",
+                script,
+              ],
+              {
+                cwd: project.dir,
+                env,
+              },
+            )
+          : new vscode.ShellExecution(project.packageManager, ["run", script], {
+              cwd: project.dir,
+              env,
+            }),
     );
     task.presentationOptions = {
       reveal: vscode.TaskRevealKind.Always,

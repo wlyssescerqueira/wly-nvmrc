@@ -38,19 +38,30 @@ export async function listScriptProcesses(): Promise<ScriptProcess[]> {
       cwd: row.Cwd || undefined,
     }));
   }
-  const { stdout } = await run("ps", ["-axo", "pid=,ppid=,comm=,args="]);
-  return Promise.all(
+  const [{ stdout }, { stdout: names }] = await Promise.all([
+    run("ps", ["-axww", "-o", "pid=,ppid=,args="]),
+    run("ps", ["-ax", "-o", "pid=,comm="]),
+  ]);
+  const byPid = new Map(
+    names.split(/\r?\n/).flatMap((line) => {
+      const match = /^\s*(\d+)\s+(.*)$/.exec(line);
+      return match
+        ? [[Number(match[1]), path.basename(match[2].trim())] as const]
+        : [];
+    }),
+  );
+  const rows = await Promise.all(
     stdout
       .split(/\r?\n/)
       .flatMap((line) => {
-        const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+        const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
         return match
           ? [
               async () => ({
                 pid: Number(match[1]),
                 parent: Number(match[2]),
-                name: path.basename(match[3]),
-                commandLine: match[4],
+                name: byPid.get(Number(match[1])) ?? "unknown",
+                commandLine: match[3],
                 cwd:
                   process.platform === "linux"
                     ? await fs
@@ -63,6 +74,39 @@ export async function listScriptProcesses(): Promise<ScriptProcess[]> {
       })
       .map((read) => read()),
   );
+  if (process.platform === "darwin") {
+    const pids = rows
+      .filter((row) => /^(node|nodejs|bun|deno|npm|pnpm|yarn)$/.test(row.name))
+      .map((row) => row.pid);
+    if (pids.length) {
+      const { stdout: directories } = await run("lsof", [
+        "-a",
+        "-p",
+        pids.join(","),
+        "-d",
+        "cwd",
+        "-Fn",
+      ]).catch((error) => {
+        if (error.code === 1) {
+          return { stdout: "" };
+        }
+        throw error;
+      });
+      let pid = 0;
+      for (const line of directories.split(/\r?\n/)) {
+        if (line.startsWith("p")) {
+          pid = Number(line.slice(1));
+        }
+        if (line.startsWith("n")) {
+          const row = rows.find((row) => row.pid === pid);
+          if (row) {
+            row.cwd = line.slice(1);
+          }
+        }
+      }
+    }
+  }
+  return rows;
 }
 
 export function matchScriptProcesses(

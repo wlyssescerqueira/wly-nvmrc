@@ -51,7 +51,12 @@ Simple root shortcuts such as `npm run dev --prefix backend` are hidden from the
 
 Android, Expo and React Native projects also show **Open APK folder**. It opens the directory containing a local APK in the system file manager; when multiple directories contain APKs, it offers a picker. Without APK files, it opens `android/app/build/outputs/apk` if that directory exists, or explains that a build/download is needed. It does not build or download APKs.
 
-- [nvm-windows](https://github.com/coreybutler/nvm-windows) installed and on PATH to use the "nvm use" / "nvm install" actions. Without nvm, the extension still detects and flags mismatches, it just can't switch the version automatically.
+- **Windows:** [nvm-windows](https://github.com/coreybutler/nvm-windows) on PATH for version switching and installation.
+- **macOS / Linux:** [nvm-sh](https://github.com/nvm-sh/nvm), with `nvm.sh` in `NVM_DIR`, `~/.nvm`, `$XDG_CONFIG_HOME/nvm`, or the standard Homebrew nvm directory. The extension loads it explicitly through /bin/sh, including when VS Code starts from the desktop or uses Fish/PowerShell as the default terminal. The selected Node version applies to new extension tasks and debug sessions; existing terminals keep their own environment. If Node is missing from PATH, the installed nvm default is used when available.
+- **Process inspection:** Windows uses PowerShell/CIM and netstat; macOS uses `ps` and `lsof`; Linux uses `ps`, `/proc`, and `lsof` (or `ss` when lsof is absent). Process visibility and termination follow the current user's OS permissions. Kill asks for confirmation and terminates the process tree on all three systems.
+- **Android:** install the SDK and emulator for the host OS. Default SDK paths are `%LOCALAPPDATA%\\Android\\Sdk`, `~/Library/Android/sdk`, and `~/Android/Sdk`; a custom path is supported. iOS builds still require macOS and Xcode. Scripts inside a project must themselves support the host OS.
+
+Without nvm, project detection, script execution, process controls and version checks remain available when Node is on PATH. Only version switching and installation require nvm.
 
 ## Settings
 
@@ -68,3 +73,5 @@ npm run watch:esbuild
 ```
 
 Press `F5` in VS Code to open an Extension Development Host window.
+
+`npm test` runs regression tests for all three platform branches and a native process/port smoke test on the host. `.github/workflows/ci.yml` runs tests and packaging on Windows, macOS and Linux. These checks do not replace a manual VS Code test of Run, Debug, Stop, Restart, Kill, nvm switching, APK folder opening and Android emulator startup on each OS.
