@@ -507,3 +507,56 @@ test("tree shows external PID, stopped state and debugging state from runtime up
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("status menu puts all services before support and highlights running workers", () => {
+  const item = { show() {}, hide() {}, dispose() {} };
+  const { NvmrcStatusBar } = load("src/ui/statusBar.ts", {
+    vscode: {
+      StatusBarAlignment: { Right: 1 },
+      window: { createStatusBarItem: () => item },
+      ThemeColor: class {},
+      MarkdownString: class {
+        constructor(value) {
+          this.value = value;
+        }
+      },
+    },
+  });
+  const bar = new NvmrcStatusBar();
+  const script = (name, ports = [], state = "idle") => ({
+    dir: backendDir,
+    script: name,
+    command: "node worker.cjs",
+    ports,
+    state,
+    listeners: [],
+    pids: state === "external" ? [7890] : [],
+  });
+  bar.update({ kind: "ready", current: "22.0.0", projects: [] });
+  bar.setScripts([
+    {
+      label: "mobile",
+      scripts: [
+        script("lint"),
+        script("android"),
+        script("build"),
+        script("z-worker", [], "external"),
+        script("dev", [8081]),
+      ],
+    },
+    {
+      label: "backend",
+      scripts: [script("start", [3011]), script("dev", [3011], "task")],
+    },
+  ]);
+  const text = item.tooltip.value;
+  assert.ok(text.indexOf("**start**") < text.indexOf("**android**"));
+  assert.ok(text.indexOf("**build**") < text.indexOf("**lint**"));
+  assert.ok(text.indexOf("**z-worker**") < text.indexOf("**lint**"));
+  assert.match(text, /\$\(run-all\).*\*\*z-worker\*\*/);
+  assert.match(text, /PID 7890/);
+  assert.match(text, /\$\(sync~spin\)/);
+  assert.match(item.text, /\$\(play\) 2/);
+  assert.equal(text.includes("wlyNvmrc.scripts.kill"), false);
+  bar.dispose();
+});

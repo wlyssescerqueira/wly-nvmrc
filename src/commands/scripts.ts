@@ -4,6 +4,11 @@ import { NvmrcController } from "../controller";
 import { ScriptCatalog, type ScriptNode } from "../services/scriptCatalog";
 import { ScriptRunner, type RunMode } from "../services/scriptRunner";
 import { revealScript } from "../services/scriptsService";
+import {
+  listScriptProcesses,
+  matchScriptProcesses,
+  runtimeKey,
+} from "../services/scriptProcesses";
 import { discoverScriptFiles } from "../services/scriptFiles";
 import { identifyProcessScript } from "../services/processScript";
 import {
@@ -355,6 +360,7 @@ async function syncFooter(
           dir: project.dir,
           script: `file:${file.relativePath}`,
           command: `node ${file.args.join(" ")}`,
+          file: file.relativePath,
           ports: [] as number[],
           mode: runner.runningMode(project.dir, `file:${file.relativePath}`),
         })),
@@ -362,6 +368,11 @@ async function syncFooter(
     })),
   );
 
+  const processes = await listScriptProcesses().catch(() => []);
+  const running = matchScriptProcesses(
+    processes,
+    scripts.flatMap((project) => project.scripts),
+  );
   const allPorts = [
     ...new Set(
       scripts.flatMap((project) =>
@@ -392,8 +403,10 @@ async function syncFooter(
       const held = listeners.filter((listener) =>
         script.ports.includes(listener.port),
       );
+      const pids = running.get(runtimeKey(script.dir, script.script)) ?? [];
       const state: FooterState =
         mode ??
+        (pids.length ? "external" : undefined) ??
         (held.length === 0
           ? "idle"
           : held.some((listener) => !listener.ours)
@@ -407,7 +420,7 @@ async function syncFooter(
               : held.every((listener) => listener.owner)
                 ? "occupied"
                 : "unknown");
-      return { ...script, state, listeners: held };
+      return { ...script, state, listeners: held, pids };
     }),
   }));
   controller.statusBar.setScripts(projects);

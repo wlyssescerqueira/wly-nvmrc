@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { isMobileLaunchScript } from "../services/mobileService";
 import type { NvmrcStatus } from "../types";
 
 /** Process listening on one of the script's ports, and whether it belongs to this workspace. */
@@ -23,6 +24,7 @@ export type FooterScript = {
   ports: number[];
   state: FooterState;
   listeners: FooterListener[];
+  pids?: number[];
 };
 export type FooterProject = {
   label: string;
@@ -56,7 +58,7 @@ const STATE_ICONS: Record<FooterState, string> = {
   idle: "$(circle-outline)",
   task: colored("$(sync~spin)", "debugIcon-startForeground"),
   debug: colored("$(debug-alt)", "debugIcon-startForeground"),
-  external: colored("$(pass-filled)", "debugIcon-startForeground"),
+  external: colored("$(run-all)", "debugIcon-startForeground"),
   conflict: "$(warning)",
   occupied: "$(circle-slash)",
   unknown: "$(question)",
@@ -145,7 +147,7 @@ function scriptEntry(item: FooterScript): string {
     case "debug":
       return `${head} ${link("$(debug-restart)", "wlyNvmrc.scripts.restart", [ref], "Restart")} ${link(colored("$(debug-stop)", "errorForeground"), "wlyNvmrc.scripts.stop", [ref], "Stop")}`;
     case "external":
-      return `${head} *${escape(listenerText(item.listeners))}* ${kill(item.listeners)}`;
+      return `${head} *${escape(item.listeners.length ? listenerText(item.listeners) : `PID ${(item.pids ?? []).join(", ")}`)}*${item.listeners.length ? ` ${kill(item.listeners)}` : ""}`;
     case "occupied":
       return `${head} *port used by ${escape([...new Set(item.listeners.map((listener) => listener.owner?.script))].join(", "))}* ${debug} ${run}`;
     case "unknown":
@@ -162,33 +164,72 @@ function scriptEntry(item: FooterScript): string {
 function scriptsSection(projects: FooterProject[]): string {
   const entries: string[] = [];
   const multiple = projects.length > 1;
-  projects.forEach((project, index) => {
-    if (multiple) {
-      if (index > 0) {
-        entries.push("---");
+  const groups = [
+    {
+      title: "$(server) Serviços",
+      accepts: (item: FooterScript) => item.ports.length > 0,
+    },
+    {
+      title: "$(device-mobile) Apoio aos serviços / mobile",
+      accepts: (item: FooterScript) =>
+        item.ports.length === 0 &&
+        (isMobileLaunchScript(item.script, item.command) ||
+          /(?:^|[:/\\-])(?:mobile|android|ios|emulator|avd|apk|bundle|prebuild|build|prepare|setup|postinstall|db|prisma|migrate|generate|seed)(?:[:/\\.-]|$)/i.test(
+            item.script,
+          )),
+    },
+  ];
+  const category = (item: FooterScript) => {
+    const index = groups.findIndex((group) => group.accepts(item));
+    return index === -1 ? 2 : index;
+  };
+  const titles = [
+    ...groups.map((group) => group.title),
+    "$(code) Outros scripts",
+  ];
+  titles.forEach((title, group) => {
+    if (
+      !projects.some(
+        (project) =>
+          project.scripts.some((item) => category(item) === group) ||
+          (group === 1 && project.apkDir),
+      )
+    )
+      return;
+    entries.push(`**${title}**`);
+    projects.forEach((project) => {
+      const items = project.scripts.filter((item) => category(item) === group);
+      if (!items.length && !(group === 1 && project.apkDir)) return;
+      if (multiple) {
+        entries.push(`$(json) **${escape(project.label)}**`);
       }
-      entries.push(`$(json) **${escape(project.label)}**`);
-    }
-    project.scripts.forEach((item) => entries.push(scriptEntry(item)));
-    if (project.apkDir) {
-      entries.push(
-        link(
-          project.androidReady
-            ? "$(device-mobile) Start Android emulator…"
-            : "$(warning) Configure Android SDK / emulator…",
-          project.androidReady
-            ? "wlyNvmrc.android.startEmulator"
-            : "wlyNvmrc.android.configure",
-        ),
-      );
-      entries.push(
-        link(
-          "$(folder-opened) Open APK folder",
-          "wlyNvmrc.scripts.openApkFolder",
-          [project.apkDir],
-        ),
-      );
-    }
+      items
+        .sort((a, b) => {
+          const active = (item: FooterScript) =>
+            ["task", "debug", "external"].includes(item.state) ? 0 : 1;
+          return active(a) - active(b) || a.script.localeCompare(b.script);
+        })
+        .forEach((item) => entries.push(scriptEntry(item)));
+      if (group === 1 && project.apkDir) {
+        entries.push(
+          link(
+            project.androidReady
+              ? "$(device-mobile) Start Android emulator…"
+              : "$(warning) Configure Android SDK / emulator…",
+            project.androidReady
+              ? "wlyNvmrc.android.startEmulator"
+              : "wlyNvmrc.android.configure",
+          ),
+        );
+        entries.push(
+          link(
+            "$(folder-opened) Open APK folder",
+            "wlyNvmrc.scripts.openApkFolder",
+            [project.apkDir],
+          ),
+        );
+      }
+    });
   });
   entries.push(
     link("$(list-unordered) Run another script…", "wlyNvmrc.scripts.run"),
@@ -317,7 +358,10 @@ export class NvmrcStatusBar {
     const running = this.scripts
       .flatMap((project) => project.scripts)
       .filter(
-        (script) => script.state === "task" || script.state === "debug",
+        (script) =>
+          script.state === "task" ||
+          script.state === "debug" ||
+          script.state === "external",
       ).length;
     if (running > 0) {
       this.item.text += ` · $(play) ${running}`;
