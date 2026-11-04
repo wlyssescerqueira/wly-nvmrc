@@ -508,7 +508,7 @@ test("tree shows external PID, stopped state and debugging state from runtime up
   }
 });
 
-test("status menu puts all services before support and highlights running workers", () => {
+function loadStatusBar() {
   const item = { show() {}, hide() {}, dispose() {} };
   const { NvmrcStatusBar } = load("src/ui/statusBar.ts", {
     vscode: {
@@ -522,42 +522,106 @@ test("status menu puts all services before support and highlights running worker
       },
     },
   });
-  const bar = new NvmrcStatusBar();
-  const script = (name, ports = [], state = "idle") => ({
-    dir: backendDir,
-    script: name,
-    command: "node worker.cjs",
-    ports,
-    state,
-    listeners: [],
-    pids: state === "external" ? [7890] : [],
-  });
+  return { item, bar: new NvmrcStatusBar() };
+}
+
+const footerScript = (name, ports = [], state = "idle", extra = {}) => ({
+  dir: backendDir,
+  script: name,
+  command: "node worker.cjs",
+  ports,
+  state,
+  listeners: [],
+  pids: state === "external" ? [7890] : [],
+  ...extra,
+});
+
+test("status menu lists running scripts first, then servers, and leaves the rest to the picker", () => {
+  const { item, bar } = loadStatusBar();
   bar.update({ kind: "ready", current: "22.0.0", projects: [] });
   bar.setScripts([
     {
-      label: "mobile",
+      label: "mobile\\package.json",
+      name: "mobile",
       scripts: [
-        script("lint"),
-        script("android"),
-        script("build"),
-        script("z-worker", [], "external"),
-        script("dev", [8081]),
+        footerScript("lint"),
+        footerScript("android"),
+        footerScript("build"),
+        footerScript("z-worker", [], "external"),
+        footerScript("dev", [8081]),
       ],
     },
     {
-      label: "backend",
-      scripts: [script("start", [3011]), script("dev", [3011], "task")],
+      label: "package.json",
+      name: "root",
+      scripts: [footerScript("backend", [3011], "idle", { shortcut: true })],
+    },
+    {
+      label: "backend\\package.json",
+      name: "backend",
+      scripts: [
+        footerScript("start", [3011]),
+        footerScript("dev", [3011], "task"),
+      ],
     },
   ]);
   const text = item.tooltip.value;
-  assert.ok(text.indexOf("**start**") < text.indexOf("**android**"));
-  assert.ok(text.indexOf("**build**") < text.indexOf("**lint**"));
-  assert.ok(text.indexOf("**z-worker**") < text.indexOf("**lint**"));
-  assert.match(text, /\$\(run-all\).*\*\*z-worker\*\*/);
-  assert.match(text, /PID 7890/);
-  assert.match(text, /\$\(sync~spin\)/);
+  const rows = text.split("\n").filter((line) => line.startsWith("| "));
+  const row = (name) => rows.findIndex((line) => line.includes(`**${name}**`));
+  // Running ones first, then idle servers; one table, no repeated project headers.
+  assert.ok(row("z-worker") < row("start"));
+  assert.ok(rows[row("dev")].includes("$(sync~spin)"));
+  assert.ok(row("dev") < row("start"));
+  assert.doesNotMatch(text, /\*\*(lint|android|build|backend)\*\*/);
+  assert.equal((text.match(/package\.json/g) ?? []).length, 0);
+  assert.match(text, /Todos os scripts \(8\)/);
+  assert.match(rows[row("z-worker")], /\$\(run-all\)/);
+  assert.match(rows[row("z-worker")], /PID 7890/);
+  assert.match(rows[row("z-worker")], /command:wlyNvmrc.scripts.kill/);
+  assert.match(text, /Matar PID 7890/);
   assert.match(item.text, /\$\(play\) 2/);
-  assert.match(text, /\*\*z-worker\*\*[^\n]*command:wlyNvmrc.scripts.kill/);
-  assert.match(text, /Matar processo: PID 7890/);
+  bar.dispose();
+});
+
+test("status menu summarises matching projects and lists only the problems", () => {
+  const { item, bar } = loadStatusBar();
+  const project = (name, required, source, matches) => ({
+    name,
+    path: name,
+    required,
+    source,
+    matches,
+  });
+  bar.update({
+    kind: "ready",
+    current: "22.18.0",
+    projects: [
+      project("api", "22.18.0", "nvmrc", true),
+      project("web", "22.18.0", "engines", true),
+    ],
+  });
+  let text = item.tooltip.value;
+  assert.match(
+    text,
+    /Node v22\.18\.0\*\* · \$\(check\) 2 projetos compatíveis/,
+  );
+  assert.doesNotMatch(text, /\| Projeto/);
+  assert.doesNotMatch(text, /nvm use/);
+
+  bar.update({
+    kind: "ready",
+    current: "22.18.0",
+    projects: [
+      project("api", "22.18.0", "nvmrc", true),
+      project("legacy", "20.1.0", "engines", false),
+      project("tools", null, null, null),
+    ],
+  });
+  text = item.tooltip.value;
+  assert.match(text, /1 de 3 compatíveis/);
+  assert.doesNotMatch(text, /\| api \|/);
+  assert.match(text, /\| legacy \| v20\.1\.0 \(engines\) \| \$\(error\)/);
+  assert.match(text, /\| tools \| — \| \$\(warning\) sem \.nvmrc/);
+  assert.match(text, /nvm use/);
   bar.dispose();
 });

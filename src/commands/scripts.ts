@@ -10,6 +10,7 @@ import {
   runtimeKey,
 } from "../services/scriptProcesses";
 import { discoverScriptFiles } from "../services/scriptFiles";
+import { isScriptShortcut } from "../services/scriptVisibility";
 import { identifyProcessScript } from "../services/processScript";
 import {
   androidReady,
@@ -319,17 +320,46 @@ function belongsToWorkspace(commandLines: string[]): boolean {
   });
 }
 
+/** Every package.json script and scripts/ file, grouped by project. */
 async function pickScript(
   catalog: ScriptCatalog,
 ): Promise<ScriptNode | undefined> {
-  const items = (await catalog.getProjects()).flatMap((project) =>
-    Object.entries(project.scripts).map(([script, command]) => ({
-      label: script,
-      description: project.label,
-      detail: command,
-      node: { kind: "script", project, script, command } as ScriptNode,
-    })),
-  );
+  type Item = vscode.QuickPickItem & { node?: ScriptNode };
+  const items: Item[] = [];
+  for (const project of await catalog.getProjects()) {
+    const nodes: ScriptNode[] = [
+      ...Object.entries(project.scripts).map(
+        ([script, command]): ScriptNode => ({
+          kind: "script",
+          project,
+          script,
+          command,
+        }),
+      ),
+      ...(await discoverScriptFiles(project.dir)).map(
+        (file): ScriptNode => ({
+          kind: "script",
+          project,
+          script: `file:${file.relativePath}`,
+          command: `node ${file.args.join(" ")}`,
+          file: file.relativePath,
+          args: file.args,
+        }),
+      ),
+    ];
+    if (nodes.length === 0) {
+      continue;
+    }
+    items.push(
+      { label: project.label, kind: vscode.QuickPickItemKind.Separator },
+      ...nodes.map((node) => ({
+        label: node.file ?? node.script,
+        description: project.label,
+        detail: node.command,
+        node,
+      })),
+    );
+  }
   if (items.length === 0) {
     toast("No package.json scripts found in this workspace.", "warn");
     return undefined;
@@ -390,6 +420,10 @@ async function syncFooter(
   const scripts = await Promise.all(
     catalogProjects.map(async (project) => ({
       label: project.label,
+      name:
+        project.dir === project.workspaceFolder.uri.fsPath
+          ? project.workspaceFolder.name
+          : path.basename(project.dir),
       dir: project.dir,
       android: isAndroidProject(project.dir),
       scripts: [
@@ -399,6 +433,7 @@ async function syncFooter(
           command,
           ports: detectScriptPorts(project.dir, script),
           mode: runner.runningMode(project.dir, script),
+          shortcut: isScriptShortcut(project, command, catalogProjects),
         })),
         ...(await discoverScriptFiles(project.dir)).map((file) => ({
           dir: project.dir,
@@ -441,6 +476,7 @@ async function syncFooter(
 
   const projects: FooterProject[] = scripts.map((project) => ({
     label: project.label,
+    name: project.name,
     apkDir: project.android ? project.dir : undefined,
     androidReady: project.android ? androidReady() : undefined,
     scripts: project.scripts.map(({ mode, ...script }) => {

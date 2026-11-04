@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { isMobileLaunchScript } from "../services/mobileService";
 import type { NvmrcStatus } from "../types";
 
 /** Process listening on one of the script's ports, and whether it belongs to this workspace. */
@@ -31,9 +30,13 @@ export type FooterScript = {
   state: FooterState;
   listeners: FooterListener[];
   pids?: number[];
+  /** Root alias such as `npm run dev --prefix frontend` whose target script is also listed. */
+  shortcut?: boolean;
 };
 export type FooterProject = {
   label: string;
+  /** Folder name shown in the menu (`frontend`, or the workspace name for the root). */
+  name: string;
   scripts: FooterScript[];
   apkDir?: string;
   androidReady?: boolean;
@@ -47,7 +50,10 @@ function link(
 ): string {
   const query =
     args === undefined ? "" : `?${encodeURIComponent(JSON.stringify(args))}`;
-  const hint = title ? ` "${title.replace(/["\\]/g, "\\$&")}"` : "";
+  // Pipes are escaped too, because links also live inside table cells.
+  const hint = title
+    ? ` "${title.replace(/["\\]/g, "\\$&").replace(/\|/g, "\\|")}"`
+    : "";
   return `[${label}](command:${command}${query}${hint})`;
 }
 
@@ -60,8 +66,13 @@ function colored(text: string, themeColor: string): string {
   return `<span style="color:var(--vscode-${themeColor});">${text}</span>`;
 }
 
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** Idle scripts get no icon, so the running ones stand out. */
 const STATE_ICONS: Record<FooterState, string> = {
-  idle: "$(circle-outline)",
+  idle: "",
   task: colored("$(sync~spin)", "debugIcon-startForeground"),
   debug: colored("$(debug-alt)", "debugIcon-startForeground"),
   external: colored("$(run-all)", "debugIcon-startForeground"),
@@ -71,219 +82,248 @@ const STATE_ICONS: Record<FooterState, string> = {
 };
 
 const LEGEND: Record<Exclude<FooterState, "idle">, string> = {
-  task: "running here",
-  debug: "debugging here",
-  external: "running outside this window (this project)",
-  conflict: "port used by another project",
-  occupied: "port used by another script",
-  unknown: "port occupied — script not identified",
+  task: "rodando nesta janela",
+  debug: "depurando nesta janela",
+  external: "rodando fora desta janela",
+  conflict: "porta usada por outro projeto",
+  occupied: "porta usada por outro script",
+  unknown: "porta ocupada por processo não identificado",
 };
 
-/** Each menu entry is its own paragraph so the hover lays them out as a vertical list. */
-function section(title: string, entries: string[]): string {
-  return [title, ...entries].join("\n\n");
+function isActive(item: FooterScript): boolean {
+  return (
+    item.state === "task" || item.state === "debug" || item.state === "external"
+  );
 }
 
-function statusSection(status: NvmrcStatus): string {
-  const lines: string[] = [];
-  if (status.kind === "node-not-found") {
-    lines.push("$(circle-slash) **Node.js not found**");
-  } else if (status.kind === "ready") {
-    lines.push(`$(versions) **Node v${status.current}**`);
-  }
-  const rows = status.projects.map((project) => {
-    const required = !project.required
-      ? "missing"
-      : project.source === "engines"
-        ? `v${project.required} (engines)`
-        : `v${project.required}`;
-    const state =
-      project.matches === true
-        ? "$(check) match"
-        : project.matches === false
-          ? "$(error) mismatch"
-          : "$(warning) —";
-    return `| ${escape(project.name)} | ${required} | ${state} |`;
-  });
-  lines.push(
-    ["| Project | Required | Status |", "|---|---|---|", ...rows].join("\n"),
+function table(header: string[], rows: string[][]): string {
+  return [
+    `| ${header.join(" | ")} |`,
+    `|${header.map(() => "---").join("|")}|`,
+    ...rows.map((row) => `| ${row.join(" | ")} |`),
+  ].join("\n");
+}
+
+/** Node version plus only the projects that need attention; matching ones are summarised. */
+function nodeSection(status: NvmrcStatus): string {
+  const problems = status.projects.filter(
+    (project) => project.matches !== true,
   );
+  const ok = status.projects.length - problems.length;
+  const title =
+    status.kind === "node-not-found"
+      ? "$(circle-slash) **Node.js não encontrado**"
+      : status.kind === "ready"
+        ? `$(versions) **Node v${status.current}**`
+        : "$(versions) **Node**";
+  const summary =
+    problems.length === 0
+      ? `$(check) ${plural(ok, "projeto compatível", "projetos compatíveis")}`
+      : ok > 0
+        ? `${ok} de ${status.projects.length} compatíveis`
+        : "";
+  const lines = [summary ? `${title} · ${summary}` : title];
+  if (problems.length) {
+    lines.push(
+      table(
+        ["Projeto", "Exige", ""],
+        problems.map((project) => [
+          escape(project.name),
+          !project.required
+            ? "—"
+            : `v${project.required}${project.source === "engines" ? " (engines)" : ""}`,
+          project.matches === false
+            ? "$(error) versão diferente"
+            : !project.required
+              ? "$(warning) sem .nvmrc"
+              : "$(question) não verificado",
+        ]),
+      ),
+    );
+  }
+  const actions: string[] = [];
+  if (
+    status.kind === "node-not-found" ||
+    status.projects.some((project) => project.matches === false)
+  ) {
+    actions.push(
+      link(
+        "$(sync) nvm use",
+        "wlyNvmrc.useRequiredVersion",
+        undefined,
+        "Trocar para a versão do .nvmrc",
+      ),
+      link(
+        "$(cloud-download) nvm install",
+        "wlyNvmrc.installRequiredVersion",
+        undefined,
+        "Instalar a versão do .nvmrc",
+      ),
+    );
+  }
+  // Projects pinned through "engines" are fine; "Projetos…" still offers to turn that into a .nvmrc.
+  if (status.projects.some((project) => !project.required)) {
+    actions.push(link("$(add) Criar .nvmrc", "wlyNvmrc.createNvmrc"));
+  }
+  if (status.projects.some((project) => project.source === "nvmrc")) {
+    actions.push(link("$(go-to-file) Abrir .nvmrc", "wlyNvmrc.openNvmrcFile"));
+  }
+  if (actions.length) {
+    lines.push(actions.join(" · "));
+  }
   return lines.join("\n\n");
 }
 
-function listenerText(listeners: FooterListener[]): string {
-  return listeners
-    .map((item) => `:${item.port} ${item.processName} #${item.pid}`)
-    .join(", ");
+/** Who holds the script's ports, without repeating the port numbers. */
+function holders(item: FooterScript, listeners: FooterListener[]): string {
+  const names = [
+    ...new Set(
+      listeners.map((listener) => `${listener.processName} #${listener.pid}`),
+    ),
+  ];
+  if (names.length) {
+    return names.join(", ");
+  }
+  return item.pids?.length ? `PID ${item.pids.join(", ")}` : "";
 }
 
-function scriptEntry(item: FooterScript): string {
+function scriptRow(
+  project: FooterProject,
+  item: FooterScript,
+  multiple: boolean,
+): string[] {
   const ref = { dir: item.dir, script: item.script };
-  const ports = item.ports.length
-    ? ` \`${item.ports.map((port) => `:${port}`).join(" ")}\``
-    : "";
   const name = link(
-    `**${escape(item.script)}**`,
+    `**${escape(item.script.replace(/^file:(?:scripts[\\/])?/, ""))}**`,
     "wlyNvmrc.scripts.open",
     [ref],
     item.command,
   );
-  const run = link(
-    "$(play)",
-    "wlyNvmrc.scripts.run",
+  const run = link("$(play)", "wlyNvmrc.scripts.run", [ref], "Executar");
+  const debug = link("$(debug)", "wlyNvmrc.scripts.debug", [ref], "Depurar");
+  const kill = link(
+    colored("$(close)", "errorForeground"),
+    "wlyNvmrc.scripts.kill",
     [ref],
-    `Run "${item.script}"`,
+    `Matar ${holders(item, item.listeners)}`,
   );
-  const debug = link(
-    "$(debug)",
-    "wlyNvmrc.scripts.debug",
+  const restart = link(
+    "$(debug-restart)",
+    "wlyNvmrc.scripts.restart",
     [ref],
-    `Debug "${item.script}"`,
+    "Reiniciar",
   );
-  const kill = (listeners: FooterListener[]) =>
-    link(
-      "$(close)",
-      "wlyNvmrc.scripts.kill",
-      [ref],
-      `Matar processo: ${listeners.length ? listenerText(listeners) : `PID ${(item.pids ?? []).join(", ")}`}`,
-    );
-  const head = `${STATE_ICONS[item.state]} ${name}${ports}`;
-  switch (item.state) {
-    case "task":
-    case "debug":
-      return `${head} ${link("$(debug-restart)", "wlyNvmrc.scripts.restart", [ref], "Restart")} ${link(colored("$(debug-stop)", "errorForeground"), "wlyNvmrc.scripts.stop", [ref], "Stop")}`;
-    case "external":
-      return `${head} *${escape(item.listeners.length ? listenerText(item.listeners) : `PID ${(item.pids ?? []).join(", ")}`)}* ${kill(item.listeners)}`;
-    case "occupied":
-      return `${head} ${debug} ${run}`;
-    case "unknown":
-      return `${head} *port occupied — script not identified (${escape(listenerText(item.listeners))})* ${debug} ${run}`;
-    case "conflict": {
-      const others = item.listeners.filter((listener) => !listener.ours);
-      return `${head} *${escape(listenerText(others))}* ${debug} ${run} ${kill(item.listeners)}`;
-    }
-    default:
-      return `${head} ${debug} ${run}`;
-  }
+  const stop = link(
+    colored("$(debug-stop)", "errorForeground"),
+    "wlyNvmrc.scripts.stop",
+    [ref],
+    "Parar",
+  );
+  const shown =
+    item.state === "conflict"
+      ? item.listeners.filter((listener) => !listener.ours)
+      : item.listeners;
+  const who =
+    item.state === "idle" || item.state === "task" || item.state === "debug"
+      ? ""
+      : holders(item, shown);
+  const port = [
+    item.ports.map((value) => `:${value}`).join(" "),
+    who ? `*${escape(who)}*` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const actions =
+    item.state === "task" || item.state === "debug"
+      ? [restart, stop]
+      : item.state === "external"
+        ? [kill]
+        : item.state === "conflict"
+          ? [debug, run, kill]
+          : [debug, run];
+  return [
+    STATE_ICONS[item.state],
+    ...(multiple ? [escape(project.name)] : []),
+    name,
+    port,
+    actions.join(" "),
+  ];
 }
 
+/**
+ * One table with what matters right now: running scripts and servers (scripts with a port).
+ * Root aliases of a listed script are dropped; every script stays one click away in the picker.
+ */
 function scriptsSection(projects: FooterProject[]): string {
-  const entries: string[] = [];
   const multiple = projects.length > 1;
-  const groups = [
-    {
-      title: "$(server) Serviços",
-      accepts: (item: FooterScript) => item.ports.length > 0,
-    },
-    {
-      title: "$(device-mobile) Apoio aos serviços / mobile",
-      accepts: (item: FooterScript) =>
-        item.ports.length === 0 &&
-        (isMobileLaunchScript(item.script, item.command) ||
-          /(?:^|[:/\\-])(?:mobile|android|ios|emulator|avd|apk|bundle|prebuild|build|prepare|setup|postinstall|db|prisma|migrate|generate|seed)(?:[:/\\.-]|$)/i.test(
-            item.script,
-          )),
-    },
-  ];
-  const category = (item: FooterScript) => {
-    const index = groups.findIndex((group) => group.accepts(item));
-    return index === -1 ? 2 : index;
-  };
-  const titles = [
-    ...groups.map((group) => group.title),
-    "$(code) Outros scripts",
-  ];
-  titles.forEach((title, group) => {
-    if (
-      !projects.some(
-        (project) =>
-          project.scripts.some((item) => category(item) === group) ||
-          (group === 1 && project.apkDir),
+  const visible = projects.flatMap((project, order) =>
+    project.scripts
+      .filter(
+        (item) => isActive(item) || (item.ports.length > 0 && !item.shortcut),
       )
-    )
-      return;
-    entries.push(`**${title}**`);
-    projects.forEach((project) => {
-      const items = project.scripts.filter((item) => category(item) === group);
-      if (!items.length && !(group === 1 && project.apkDir)) return;
-      if (multiple) {
-        entries.push(`$(json) **${escape(project.label)}**`);
-      }
-      items
-        .sort((a, b) => {
-          const active = (item: FooterScript) =>
-            ["task", "debug", "external"].includes(item.state) ? 0 : 1;
-          return active(a) - active(b) || a.script.localeCompare(b.script);
-        })
-        .forEach((item) => entries.push(scriptEntry(item)));
-      if (group === 1 && project.apkDir) {
-        entries.push(
-          link(
-            project.androidReady
-              ? "$(device-mobile) Start Android emulator…"
-              : "$(warning) Configure Android SDK / emulator…",
-            project.androidReady
-              ? "wlyNvmrc.android.startEmulator"
-              : "wlyNvmrc.android.configure",
-          ),
-        );
-        entries.push(
-          link(
-            "$(folder-opened) Open APK folder",
-            "wlyNvmrc.scripts.openApkFolder",
-            [project.apkDir],
-          ),
-        );
-      }
-    });
-  });
-  entries.push(
-    link("$(list-unordered) Run another script…", "wlyNvmrc.scripts.run"),
+      .map((item) => ({ project, order, item })),
   );
-  const states = new Set(
-    projects.flatMap((project) => project.scripts.map((item) => item.state)),
+  visible.sort(
+    (a, b) =>
+      Number(isActive(b.item)) - Number(isActive(a.item)) ||
+      a.order - b.order ||
+      a.item.script.localeCompare(b.item.script),
   );
+  const total = projects.reduce(
+    (count, project) => count + project.scripts.length,
+    0,
+  );
+  const lines = ["$(tools) **Scripts**"];
+  if (visible.length) {
+    lines.push(
+      table(
+        ["", ...(multiple ? ["Projeto"] : []), "Script", "Porta", ""],
+        visible.map(({ project, item }) => scriptRow(project, item, multiple)),
+      ),
+    );
+  }
+  const android = projects.filter((project) => project.apkDir);
+  for (const project of android) {
+    const prefix = android.length > 1 ? `${escape(project.name)}: ` : "";
+    const emulator = project.androidReady
+      ? link(
+          "$(device-mobile) Emulador Android",
+          "wlyNvmrc.android.startEmulator",
+        )
+      : link("$(warning) Configurar Android SDK", "wlyNvmrc.android.configure");
+    const apk = link(
+      "$(folder-opened) Pasta do APK",
+      "wlyNvmrc.scripts.openApkFolder",
+      [project.apkDir],
+    );
+    lines.push(`${prefix}${emulator} · ${apk}`);
+  }
+  lines.push(
+    link(
+      `$(list-unordered) Todos os scripts (${total})…`,
+      "wlyNvmrc.scripts.run",
+      undefined,
+      "Escolher qualquer script do workspace",
+    ),
+  );
+  const states = new Set(visible.map(({ item }) => item.state));
   const legend = (Object.keys(LEGEND) as (keyof typeof LEGEND)[])
     .filter((state) => states.has(state))
     .map((state) => `${STATE_ICONS[state]} ${LEGEND[state]}`);
   if (legend.length) {
-    entries.push(`*${legend.join(" · ")}*`);
+    lines.push(`*${legend.join(" · ")}*`);
   }
-  return section("$(tools) **Scripts**", entries);
+  return lines.join("\n\n");
 }
 
-function nodeSection(status: NvmrcStatus): string {
-  const entries = [
-    link(
-      "$(sync) Switch to .nvmrc version (nvm use)",
-      "wlyNvmrc.useRequiredVersion",
-    ),
-    link(
-      "$(cloud-download) Install .nvmrc version (nvm install)",
-      "wlyNvmrc.installRequiredVersion",
-    ),
-  ];
-  const missing = status.projects.some((project) => project.source !== "nvmrc");
-  const existing = status.projects.some(
-    (project) => project.source === "nvmrc",
-  );
-  if (missing) {
-    entries.push(link("$(add) Create .nvmrc", "wlyNvmrc.createNvmrc"));
-  }
-  if (existing) {
-    entries.push(link("$(go-to-file) Open .nvmrc", "wlyNvmrc.openNvmrcFile"));
-  }
-  entries.push(link("$(list-selection) Manage projects…", "wlyNvmrc.openMenu"));
-  return section("$(versions) **Node Version**", entries);
-}
-
-function settingsSection(): string {
-  return section("$(gear) **Settings**", [
-    link("$(refresh) Refresh", "wlyNvmrc.refresh"),
-    link("$(settings-gear) Settings", "workbench.action.openSettings", [
+function footerSection(): string {
+  return [
+    link("$(list-selection) Projetos…", "wlyNvmrc.openMenu"),
+    link("$(refresh) Atualizar", "wlyNvmrc.refresh"),
+    link("$(settings-gear) Configurações", "workbench.action.openSettings", [
       "wlyNvmrc",
     ]),
-  ]);
+  ].join(" · ");
 }
 
 function buildTooltip(
@@ -291,12 +331,9 @@ function buildTooltip(
   scripts: FooterProject[],
 ): vscode.MarkdownString {
   const tooltip = new vscode.MarkdownString(
-    [
-      statusSection(status),
-      scriptsSection(scripts),
-      nodeSection(status),
-      settingsSection(),
-    ].join("\n\n---\n\n"),
+    [nodeSection(status), scriptsSection(scripts), footerSection()].join(
+      "\n\n---\n\n",
+    ),
     true,
   );
   tooltip.isTrusted = true;
@@ -363,12 +400,7 @@ export class NvmrcStatusBar {
     }
     const running = this.scripts
       .flatMap((project) => project.scripts)
-      .filter(
-        (script) =>
-          script.state === "task" ||
-          script.state === "debug" ||
-          script.state === "external",
-      ).length;
+      .filter(isActive).length;
     if (running > 0) {
       this.item.text += ` · $(play) ${running}`;
     }
