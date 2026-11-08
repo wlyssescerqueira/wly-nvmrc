@@ -378,12 +378,13 @@ async function ancestry(
   return { name, commandLines };
 }
 
+/** PIDs listening on each port; with no `ports`, every TCP listener of the machine. */
 async function listeningPids(
-  ports: number[],
+  ports?: number[],
 ): Promise<Map<number, Set<number>>> {
   const result = new Map<number, Set<number>>();
   const add = (port: number, pid: number) => {
-    if (!ports.includes(port) || !pid) {
+    if ((ports && !ports.includes(port)) || !port || !pid) {
       return;
     }
     if (!result.has(port)) {
@@ -415,6 +416,44 @@ async function listeningPids(
         Number(columns[1].slice(columns[1].lastIndexOf(":") + 1)),
         Number(columns[columns.length - 1]),
       );
+    }
+  } else if (!ports) {
+    const { stdout } = await run("lsof", [
+      "-nP",
+      "-iTCP",
+      "-sTCP:LISTEN",
+      "-Fpn",
+    ]).catch(async (error) => {
+      if (error.code === 1) {
+        return { stdout: "" };
+      }
+      if (process.platform !== "linux" || error.code !== "ENOENT") {
+        throw error;
+      }
+      // Rewrite ss output in lsof's field format: pid lines, then name lines.
+      const { stdout: sockets } = await run("ss", ["-H", "-ltnp"]);
+      return {
+        stdout: sockets
+          .split(/\r?\n/)
+          .flatMap((line) => {
+            const local = line.trim().split(/\s+/)[3];
+            return local
+              ? [...line.matchAll(/pid=(\d+)/g)].flatMap((match) => [
+                  `p${match[1]}`,
+                  `n${local}`,
+                ])
+              : [];
+          })
+          .join("\n"),
+      };
+    });
+    let pid = 0;
+    for (const line of stdout.split(/\r?\n/)) {
+      if (line.startsWith("p")) {
+        pid = Number(line.slice(1));
+      } else if (line.startsWith("n")) {
+        add(Number(line.slice(line.lastIndexOf(":") + 1)), pid);
+      }
     }
   } else {
     for (const port of ports) {
@@ -491,6 +530,16 @@ export async function findPortListeners(
     }
   }
   return listeners.sort((a, b) => a.port - b.port);
+}
+
+/** Every TCP listener of the machine, without process details. */
+export async function listAllListeners(): Promise<
+  { port: number; pid: number }[]
+> {
+  const byPort = await listeningPids();
+  return [...byPort].flatMap(([port, pids]) =>
+    [...pids].map((pid) => ({ port, pid })),
+  );
 }
 
 export async function killProcess(pid: number): Promise<void> {

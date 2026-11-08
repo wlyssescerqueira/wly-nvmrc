@@ -21,8 +21,10 @@ import {
   detectScriptPorts,
   findPortListeners,
   killProcess,
+  listAllListeners,
   waitForPortsFree,
 } from "../services/portService";
+import { findAdhocServers } from "../services/adhocServers";
 import {
   isNvmAvailable,
   useVersion,
@@ -299,6 +301,44 @@ async function killScriptPorts(node: ScriptNode): Promise<void> {
   }
 }
 
+/** Kills a server started outside the scripts, after checking the PID still runs the same command. */
+async function killAdhocServer(target: {
+  pid: number;
+  commandLine: string;
+  command?: string;
+}): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    toast("Confie neste workspace antes de encerrar processos.", "warn");
+    return;
+  }
+  const same = (processes: Awaited<ReturnType<typeof listScriptProcesses>>) =>
+    processes.some(
+      (item) =>
+        item.pid === target.pid && item.commandLine === target.commandLine,
+    );
+  if (!same(await listScriptProcesses())) {
+    toast(`O processo ${target.pid} já terminou.`);
+    return;
+  }
+  const choice = await vscode.window.showWarningMessage(
+    `Matar "${target.command ?? target.commandLine}"?`,
+    { modal: true, detail: `PID ${target.pid}\n${target.commandLine}` },
+    "Matar processo",
+  );
+  if (choice !== "Matar processo" || !same(await listScriptProcesses())) {
+    return;
+  }
+  try {
+    await killProcess(target.pid);
+    log(`[scripts] killed PID ${target.pid} (${target.commandLine})`);
+  } catch (error) {
+    toast(
+      `Could not kill PID ${target.pid}: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+  }
+}
+
 function normalizePath(text: string): string {
   let unified = text.replace(/file:\/\/\/?/gi, "").replace(/\\/g, "/");
   try {
@@ -474,11 +514,40 @@ async function syncFooter(
     ),
   }));
 
+  // Servers started outside the scripts (`npx next dev`, a terminal) hold ports no script declares.
+  const adhoc = findAdhocServers(
+    processes,
+    await listAllListeners().catch(() => []),
+    scripts.map((project) => project.dir),
+    new Set([
+      ...[...running.values()].flat(),
+      ...listeners.map((listener) => listener.pid),
+    ]),
+    new Set(allPorts),
+  );
+
   const projects: FooterProject[] = scripts.map((project) => ({
     label: project.label,
     name: project.name,
     apkDir: project.android ? project.dir : undefined,
     androidReady: project.android ? androidReady() : undefined,
+    adhoc: adhoc
+      .filter(
+        (server) => runtimeKey(server.dir, "") === runtimeKey(project.dir, ""),
+      )
+      .map((server) => ({
+        dir: server.dir,
+        script: server.command,
+        command: server.commandLine,
+        ports: server.ports,
+        state: "external" as const,
+        listeners: server.listeners.map((listener) => ({
+          ...listener,
+          ours: true,
+        })),
+        pids: [server.pid],
+        adhoc: { pid: server.pid, commandLine: server.commandLine },
+      })),
     scripts: project.scripts.map(({ mode, ...script }) => {
       const held = listeners.filter((listener) =>
         script.ports.includes(listener.port),
@@ -620,6 +689,23 @@ export function registerScriptCommands(
         const target = await resolveScript(catalog, arg);
         if (target) {
           await killScriptPorts(target);
+          footer();
+        }
+      },
+    ),
+    vscode.commands.registerCommand(
+      "wlyNvmrc.scripts.killProcess",
+      async (target?: {
+        pid: number;
+        commandLine: string;
+        command?: string;
+      }) => {
+        if (
+          target &&
+          Number.isSafeInteger(target.pid) &&
+          typeof target.commandLine === "string"
+        ) {
+          await killAdhocServer(target);
           footer();
         }
       },

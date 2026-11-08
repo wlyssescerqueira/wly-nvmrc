@@ -390,3 +390,96 @@ test(
     }
   },
 );
+
+test("win32: servers started outside the scripts are listed once per tree", () => {
+  const { findAdhocServers } = load("src/services/adhocServers.ts", "win32");
+  const dir = String.raw`C:\WLYTECH\DEV\wly-dark\frontend`;
+  const processes = [
+    {
+      pid: 43900,
+      parent: 1,
+      name: "bash.exe",
+      commandLine: "bash npx next dev --port 8292",
+    },
+    {
+      pid: 26076,
+      parent: 43900,
+      name: "node.exe",
+      commandLine: String.raw`"C:\Program Files\nodejs\node.exe" "C:\Program Files\nodejs/node_modules/npm/bin/npx-cli.js" next dev --port 8292`,
+      cwd: dir,
+    },
+    {
+      pid: 59580,
+      parent: 26076,
+      name: "cmd.exe",
+      commandLine: "cmd.exe /d /s /c next dev --port 8292",
+    },
+    {
+      pid: 34520,
+      parent: 59580,
+      name: "node.exe",
+      commandLine: String.raw`"node" "${dir}\node_modules\.bin\\..\next\dist\bin\next" dev --port 8292`,
+    },
+    {
+      pid: 55996,
+      parent: 34520,
+      name: "node.exe",
+      commandLine: String.raw`"C:\Program Files\nodejs\node.exe" ${dir}\node_modules\next\dist\server\lib\start-server.js`,
+    },
+    {
+      pid: 700,
+      parent: 1,
+      name: "node.exe",
+      commandLine: String.raw`node ${dir}\node_modules\next\dist\bin\next dev --port 8190`,
+    },
+    {
+      pid: 800,
+      parent: 1,
+      name: "node.exe",
+      commandLine: String.raw`node C:\elsewhere\server.js`,
+    },
+    {
+      pid: 900,
+      parent: 1,
+      name: "node.exe",
+      commandLine: String.raw`node ${dir}\tool.js`,
+    },
+  ];
+  const servers = findAdhocServers(
+    processes,
+    [
+      { port: 8292, pid: 55996 },
+      { port: 8293, pid: 55996 },
+      { port: 8190, pid: 700 },
+      { port: 4000, pid: 800 },
+      { port: 5000, pid: 900 },
+    ],
+    [String.raw`C:\WLYTECH\DEV\wly-dark`, dir],
+    new Set([900]),
+    new Set([8190]),
+  );
+  assert.equal(servers.length, 1);
+  assert.equal(servers[0].dir, dir);
+  assert.equal(servers[0].pid, 34520);
+  assert.equal(servers[0].command, "next dev --port 8292");
+  assert.deepEqual(servers[0].ports, [8292, 8293]);
+});
+
+test("linux: every listener is read with one lsof call", async () => {
+  const calls = [];
+  const { listAllListeners } = load("src/services/portService.ts", "linux", {
+    vscode: {},
+    child_process: {
+      execFile(command, args, options, callback) {
+        calls.push(command);
+        callback(null, "p10\nn*:3000\nn[::1]:3001\np11\nn127.0.0.1:5432\n", "");
+      },
+    },
+  });
+  assert.deepEqual(await listAllListeners(), [
+    { port: 3000, pid: 10 },
+    { port: 3001, pid: 10 },
+    { port: 5432, pid: 11 },
+  ]);
+  assert.deepEqual(calls, ["lsof"]);
+});

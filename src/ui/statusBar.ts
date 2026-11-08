@@ -32,12 +32,16 @@ export type FooterScript = {
   pids?: number[];
   /** Root alias such as `npm run dev --prefix frontend` whose target script is also listed. */
   shortcut?: boolean;
+  /** Server started outside the scripts (`npx next dev`, a terminal); `script` holds its short command. */
+  adhoc?: { pid: number; commandLine: string };
 };
 export type FooterProject = {
   label: string;
   /** Folder name shown in the menu (`frontend`, or the workspace name for the root). */
   name: string;
   scripts: FooterScript[];
+  /** Servers of this project holding ports outside its scripts. */
+  adhoc?: FooterScript[];
   apkDir?: string;
   androidReady?: boolean;
 };
@@ -192,6 +196,27 @@ function scriptRow(
   item: FooterScript,
   multiple: boolean,
 ): string[] {
+  if (item.adhoc) {
+    const listening = `${item.ports.map((value) => `:${value}`).join(" ")} · *${escape(holders(item, item.listeners))}*`;
+    return [
+      STATE_ICONS[item.state],
+      ...(multiple ? [escape(project.name)] : []),
+      `*${escape(item.script)}*`,
+      listening,
+      link(
+        colored("$(close)", "errorForeground"),
+        "wlyNvmrc.scripts.killProcess",
+        [
+          {
+            pid: item.adhoc.pid,
+            commandLine: item.adhoc.commandLine,
+            command: item.script,
+          },
+        ],
+        `Matar PID ${item.adhoc.pid} (${item.script})`,
+      ),
+    ];
+  }
   const ref = { dir: item.dir, script: item.script };
   const name = link(
     `**${escape(item.script.replace(/^file:(?:scripts[\\/])?/, ""))}**`,
@@ -257,11 +282,12 @@ function scriptRow(
 function scriptsSection(projects: FooterProject[]): string {
   const multiple = projects.length > 1;
   const visible = projects.flatMap((project, order) =>
-    project.scripts
-      .filter(
+    [
+      ...project.scripts.filter(
         (item) => isActive(item) || (item.ports.length > 0 && !item.shortcut),
-      )
-      .map((item) => ({ project, order, item })),
+      ),
+      ...(project.adhoc ?? []),
+    ].map((item) => ({ project, order, item })),
   );
   visible.sort(
     (a, b) =>
@@ -310,6 +336,11 @@ function scriptsSection(projects: FooterProject[]): string {
   const legend = (Object.keys(LEGEND) as (keyof typeof LEGEND)[])
     .filter((state) => states.has(state))
     .map((state) => `${STATE_ICONS[state]} ${LEGEND[state]}`);
+  if (visible.some(({ item }) => item.adhoc)) {
+    legend.push(
+      "comando em itálico: iniciado fora dos scripts do package.json",
+    );
+  }
   if (legend.length) {
     lines.push(`*${legend.join(" · ")}*`);
   }
@@ -399,7 +430,7 @@ export class NvmrcStatusBar {
       }
     }
     const running = this.scripts
-      .flatMap((project) => project.scripts)
+      .flatMap((project) => [...project.scripts, ...(project.adhoc ?? [])])
       .filter(isActive).length;
     if (running > 0) {
       this.item.text += ` · $(play) ${running}`;
