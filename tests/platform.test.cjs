@@ -392,7 +392,10 @@ test(
 );
 
 test("win32: servers started outside the scripts are listed once per tree", () => {
-  const { findAdhocServers } = load("src/services/adhocServers.ts", "win32");
+  const { findAdhocServers, shortCommand } = load(
+    "src/services/adhocServers.ts",
+    "win32",
+  );
   const dir = String.raw`C:\WLYTECH\DEV\wly-dark\frontend`;
   const processes = [
     {
@@ -463,6 +466,13 @@ test("win32: servers started outside the scripts are listed once per tree", () =
   assert.equal(servers[0].pid, 34520);
   assert.equal(servers[0].command, "next dev --port 8292");
   assert.deepEqual(servers[0].ports, [8292, 8293]);
+  assert.equal(
+    shortCommand(
+      String.raw`"C:\Program Files\nodejs\node.exe" --use-system-ca -r dotenv/config server.cjs`,
+      dir,
+    ),
+    "node server.cjs",
+  );
 });
 
 test("linux: every listener is read with one lsof call", async () => {

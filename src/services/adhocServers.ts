@@ -57,28 +57,42 @@ function projectOf(item: ScriptProcess, dirs: string[]): string | undefined {
 /** `node …/node_modules/.bin/../next/dist/bin/next dev --port 8292` → `next dev --port 8292`. */
 export function shortCommand(commandLine: string, dir: string): string {
   const args = tokens(commandLine);
+  let runtime = "";
   if (args.length && RUNTIME.test(path.basename(args[0].replace(/\\/g, "/")))) {
-    args.shift();
+    runtime = path
+      .basename(args.shift()!.replace(/\\/g, "/"))
+      .replace(/\.exe$/i, "");
+    // Runtime flags (`--use-system-ca`, `-r dotenv/config`) only add noise to the label.
+    while (args[0]?.startsWith("-")) {
+      const flag = args.shift()!;
+      if (
+        /^(?:-r|--require|--import|--loader|--experimental-loader)$/.test(flag)
+      ) {
+        args.shift();
+      }
+    }
   }
   const root = folder(dir);
-  return args
-    .map((arg) => {
-      const unified = arg.replace(/\\/g, "/");
-      const bin =
-        /node_modules\/(?:\.bin\/\.\.\/)?(?:@[^/]+\/)?[^/]+\/(?:.*\/)?bin\/([^/]+?)(?:\.[cm]?js)?$/.exec(
-          unified,
-        );
-      if (bin) {
-        return bin[1];
-      }
-      if (normalize(unified).startsWith(root)) {
-        return unified.slice(root.length);
-      }
-      return /[\\/]/.test(arg) && !arg.startsWith("-")
-        ? path.posix.basename(unified)
-        : arg;
-    })
-    .join(" ");
+  const label = args.map((arg) => {
+    const unified = arg.replace(/\\/g, "/");
+    const bin =
+      /node_modules\/(?:\.bin\/\.\.\/)?(?:@[^/]+\/)?[^/]+\/(?:.*\/)?bin\/([^/]+?)(?:\.[cm]?js)?$/.exec(
+        unified,
+      );
+    if (bin) {
+      return bin[1];
+    }
+    if (normalize(unified).startsWith(root)) {
+      return unified.slice(root.length);
+    }
+    return /[\\/]/.test(arg) && !arg.startsWith("-")
+      ? path.posix.basename(unified)
+      : arg;
+  });
+  // A package bin reads as its own command (`next dev`); a plain entry file keeps the runtime (`node server.cjs`).
+  return runtime && label[0] && /\.[cm]?[jt]s$/.test(label[0])
+    ? [runtime, ...label].join(" ")
+    : label.join(" ");
 }
 
 /**

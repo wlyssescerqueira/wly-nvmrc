@@ -3,6 +3,7 @@ import * as path from "path";
 import { run } from "../utils/exec";
 import { readScripts } from "./scriptsService";
 import { listScriptProcesses } from "./scriptProcesses";
+import { windowsTcpListeners } from "./windowsTcpListeners";
 
 export type PortListener = {
   port: number;
@@ -393,16 +394,27 @@ async function listeningPids(
     result.get(port)!.add(pid);
   };
   if (process.platform === "win32") {
+    // Some Windows builds report listeners with state 0, which netstat drops,
+    // so the TCP table is also read directly; netstat stays as a fallback.
+    const [{ stdout }, { stdout: stdout6 }, { stdout: table }] =
+      await Promise.all([
+        run("netstat", ["-ano", "-p", "TCP"]).catch(() => ({ stdout: "" })),
+        run("netstat", ["-ano", "-p", "TCPv6"]).catch(() => ({ stdout: "" })),
+        run("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          windowsTcpListeners,
+        ]).catch(() => ({ stdout: "" })),
+      ]);
+    for (const line of table.split(/\r?\n/)) {
+      const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+      if (match) {
+        add(Number(match[1]), Number(match[2]));
+      }
+    }
     // State names are localized ("LISTENING", "ESCUTANDO"...), so identify
     // listeners by their wildcard remote address instead.
-    const { stdout } = await run("netstat", ["-ano", "-p", "TCP"]).catch(
-      () => ({ stdout: "" }),
-    );
-    const { stdout: stdout6 } = await run("netstat", [
-      "-ano",
-      "-p",
-      "TCPv6",
-    ]).catch(() => ({ stdout: "" }));
     for (const line of `${stdout}\n${stdout6}`.split(/\r?\n/)) {
       const columns = line.trim().split(/\s+/);
       if (
